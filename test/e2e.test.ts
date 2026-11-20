@@ -193,7 +193,7 @@ describe("oauth + mcp end to end", () => {
 
     // Teaching session over the wire: start, end with a content-addressed review, guarded delete.
     const start = await tool("session_start", { kind: "voice", ask_mode: "same_script", tz: "Asia/Tokyo" });
-    expect(start.data.server_version).toMatch(/^\d{4}-\d\d-\d\d\.\d+$/);
+    expect(start.data.server_version).toMatch(/^\d{4}-\d\d-\d\d\+[0-9a-f]{12}$/);
     expect(init.result.serverInfo.version).toBe(start.data.server_version);
     expect(start.data.since_local).toMatch(/\(Asia\/Tokyo\)$/);
     const end = await tool("session_end", {

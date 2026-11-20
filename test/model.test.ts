@@ -189,4 +189,21 @@ describe("multi-answer meanings", () => {
     const taberu = { type: "word" as const, kanji: "食べる", kana: "たべる", meaning: "(to) eat; consume", extra: { alt_meanings: ["dine"] } };
     expect(acceptedAnswers(taberu, "meaning", "kanji")).toEqual(["(to) eat; consume", "(to) eat", "consume", "eat; consume", "eat", "dine"]);
   });
+
+  it("normalises alt meanings like the main one and never leaks readings in parentheses", () => {
+    const kyou = { type: "word" as const, kanji: "今日", kana: "きょう", meaning: "today", extra: { alt_meanings: ["these days (こんにち)"] } };
+    const accept = acceptedAnswers(kyou, "meaning", "kanji");
+    expect(accept).toContain("these days");
+    expect(accept).toContain("today");
+    expect(accept).not.toContain("these days (こんにち)");
+    expect(accept.some((a) => /[ぁ-んァ-ン一-龥]/.test(a))).toBe(false);
+    // Alt meanings are split on , and ; too, and keep no un-stripped whole.
+    const alt = { ...kyou, extra: { alt_meanings: ["train (electric), tram"] } };
+    expect(acceptedAnswers(alt, "meaning", "kanji")).toEqual(["today", "train (electric)", "tram", "train, tram", "train"]);
+    // Main meaning: whole string with an English parenthetical is preserved.
+    const densha = { type: "word" as const, kanji: "電車", kana: "でんしゃ", meaning: "train (electric)" };
+    expect(acceptedAnswers(densha, "meaning", "kanji")).toEqual(["train (electric)", "train"]);
+    // A reading in brackets in the main meaning is dropped too.
+    expect(acceptedAnswers({ ...densha, meaning: "train (でんしゃ)" }, "meaning", "kanji")).toEqual(["train"]);
+  });
 });

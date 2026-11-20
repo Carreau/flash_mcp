@@ -127,24 +127,41 @@ export function acceptedAnswers(
   } else if (askFace === "kanji") {
     push(extra.alt_kanji);
   } else if (askFace === "meaning") {
-    // "quiet, calm" -> also "quiet" and "calm"; "(to) eat" -> also "eat".
-    for (const m of [n.meaning, ...(Array.isArray(extra.alt_meanings) ? extra.alt_meanings : [extra.alt_meanings])]) {
-      if (typeof m !== "string") continue;
-      push(m.trim());
-      push(meaningParts(m));
-    }
+    // "quiet, calm" -> also "quiet" and "calm"; "(to) eat" -> also "eat". Alt meanings get the
+    // same treatment, but their un-stripped whole is not kept (only the main meaning's is), and a
+    // parenthetical with kana/kanji (a reading) never reaches the accept list.
+    const alts = Array.isArray(extra.alt_meanings) ? extra.alt_meanings : [extra.alt_meanings];
+    const add = (m: unknown, main: boolean) => {
+      if (typeof m !== "string") return;
+      if (main) push(m.trim());
+      meaningParts(m).forEach(push);
+    };
+    add(n.meaning, true);
+    alts.forEach((m) => add(m, false));
+    for (let i = out.length - 1; i >= 0; i--) if (hasJapaneseParen(out[i]!)) out.splice(i, 1);
   }
   return out;
 }
 
-/** Parts of a multi-answer meaning, split on , and ; (each also without parentheticals). */
+const JA = /[\u3040-\u30ff\u3400-\u9fff]/;
+/** A parenthetical containing kana/kanji (usually a reading), which would give the answer away. */
+function hasJapaneseParen(v: string): boolean {
+  for (const m of v.matchAll(/\(([^)]*)\)|（([^）]*)）/g)) if (JA.test(m[1] ?? m[2] ?? "")) return true;
+  return false;
+}
+
+/**
+ * Parts of a multi-answer meaning, split on , and ; (each also without parentheticals).
+ */
 export function meaningParts(m: string): string[] {
   const out: string[] = [];
   const add = (v: string) => {
     const t = v.replace(/\s+/g, " ").trim();
     if (t && !out.includes(t)) out.push(t);
   };
-  const strip = (v: string) => v.replace(/\([^)]*\)|（[^）]*）/g, " ");
+  // Remove (…) and tidy the spaces it leaves: "train (electric), tram" → "train, tram".
+  const strip = (v: string) =>
+    v.replace(/\([^)]*\)|（[^）]*）/g, " ").replace(/\s+([,;])/g, "$1").replace(/\s{2,}/g, " ").trim();
   const parts = m.split(/[,;、；]/);
   if (parts.length > 1) parts.forEach(add);
   add(strip(m));

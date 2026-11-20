@@ -5,6 +5,7 @@ import { Store, UserError, uniqueMessage } from "../src/db/store";
 // Teaching-agent features: session_start/session_end, lookup, bulk_import,
 // ask_mode, upsert/tags, deck directions, trap notes, delete safety.
 
+const iso = (t: number) => new Date(t).toISOString();
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
 let now = Date.parse("2026-11-01T09:00:00Z");
@@ -575,5 +576,63 @@ describe("teacher feedback round 2", () => {
       [false, false],
     ]);
     expect((await store.getNote(w!.note_id)).cards.find((c) => c.direction === "kana>meaning")!.reps).toBe(0);
+  });
+
+  it("held_back lists only due reviews; held-back new cards are a count", async () => {
+    const [w] = await store.addWords("JP", [{ kanji: "犬", kana: "いぬ", meaning: "dog" }]);
+    const cards = (await store.getNote(w!.note_id)).cards;
+    await store.rate([{ card_id: cards.find((c) => c.direction === "kanji>kana")!.card_id, rating: "good" }]);
+    now += 60_000;
+    const due = await store.getDue({});
+    expect(due.held_back.new_cards).toBe(3);
+    expect(due.held_back.cards).toEqual([]);
+    expect(due.held_back.due_review_cards).toBe(0);
+  });
+});
+
+describe("unclosed sessions", () => {
+  const sessionRow = (id: string) =>
+    env.DB.prepare(`SELECT ended_at, closed_by FROM study_sessions WHERE id = ?`).bind(id).first<{ ended_at: number | null; closed_by: string | null }>();
+
+  it("auto-closes sessions older than 12h at their last review, lists younger ones, since uses the latest end", async () => {
+    const [w] = await store.addWords("JP", [{ kanji: "犬", kana: "いぬ", meaning: "dog" }]);
+    const card = (await store.getNote(w!.note_id)).cards[0]!.card_id;
+    const old = await store.sessionStart({ include_due: false });
+    now += HOUR;
+    const reviewedAt = now;
+    await store.rate([{ card_id: card, rating: "good", session_id: old.session_id }]);
+    const empty = await store.sessionStart({ include_due: false, kind: "voice" }); // no reviews -> closed at started_at
+    now += 5 * HOUR;
+    const young = await store.sessionStart({ include_due: false, kind: "text" });
+    expect(young.open_sessions.map((o) => o.session_id).sort()).toEqual([old.session_id, empty.session_id].sort());
+    now += 8 * HOUR; // old/empty are now 14h old, young is 8h
+    const s = await store.sessionStart({ include_due: false });
+    expect(await sessionRow(old.session_id)).toEqual({ ended_at: reviewedAt, closed_by: "auto" });
+    const e = await env.DB.prepare(`SELECT started_at FROM study_sessions WHERE id = ?`).bind(empty.session_id).first<{ started_at: number }>();
+    expect(await sessionRow(empty.session_id)).toEqual({ ended_at: e!.started_at, closed_by: "auto" });
+    expect(await sessionRow(young.session_id)).toEqual({ ended_at: null, closed_by: null });
+    expect(s.open_sessions).toEqual([{ session_id: young.session_id, started_at: iso(now - 8 * HOUR), age_hours: 8, kind: "text" }]);
+    expect(s.since).toBe(iso(reviewedAt)); // latest ended_at among closed sessions
+    expect(s.since_source).toBe("last_session_end");
+  });
+
+  it("accepts session_end on an auto-closed session once, still rejects a second", async () => {
+    const [w] = await store.addWords("JP", [{ kanji: "犬", kana: "いぬ", meaning: "dog" }]);
+    const card = (await store.getNote(w!.note_id)).cards[0]!.card_id;
+    const a = await store.sessionStart({ include_due: false });
+    now += 13 * HOUR;
+    await store.sessionStart({ include_due: false });
+    expect((await sessionRow(a.session_id))!.closed_by).toBe("auto");
+    const res = await store.sessionEnd(a.session_id, { reviews: [{ card_id: card, rating: "good" }] });
+    expect(res.summary.reviews_applied).toBe(1);
+    expect(await sessionRow(a.session_id)).toEqual({ ended_at: now, closed_by: "session_end" });
+    await expect(store.sessionEnd(a.session_id, { reviews: [{ card_id: card, rating: "good" }] })).rejects.toThrow(/already ended/);
+    expect(await count(`SELECT COUNT(*) AS n FROM review_log WHERE card_id = ?`, card)).toBe(1);
+  });
+
+  it("a normally ended session is never reopened", async () => {
+    const a = await store.sessionStart({ include_due: false });
+    await store.sessionEnd(a.session_id, {});
+    await expect(store.sessionEnd(a.session_id, {})).rejects.toThrow(/already ended/);
   });
 });

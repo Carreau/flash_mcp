@@ -117,3 +117,9 @@ The main client is Claude acting as a Japanese teacher: one call opens a session
 
 ## Out of scope (later)
 Review web UI, audio/sound directions, kanji-component (single-character) tracking, soft coupling between sibling directions.
+
+### Teacher feedback round 3
+- `held_back.cards` (get_due, session_start's due) lists only held-back due reviews; held-back new cards are only counted in `held_back.new_cards`. Counts still reconcile (due_reviews = available_now + held_back).
+- `server_version` = `${SERVER_DATE}+${tools_hash}`; `tools_hash` = first 12 hex of sha-256 over tool names, descriptions, annotations and input JSON schemas (computed once per isolate from a probe server, `src/mcp.ts`). session_start returns both; the instructions tell the agent to ask for a connector reconnect when it changes (no tools/list_changed in a stateless server).
+- Unclosed sessions (migration `0005_session_closed_by.sql`, `study_sessions.closed_by`): session_start auto-closes the user's open sessions older than 12 h (`ended_at` = last review logged with that session_id, else `started_at`; `closed_by = 'auto'`) and returns `open_sessions` (younger than 12 h, excluding the new one). `since` default = latest `ended_at` of any closed session. session_end accepts an auto-closed session once (sets `closed_by = 'session_end'`); the single-shot guard rejects a second call.
+- Meaning accept list: alt_meanings get the same normalisation as the main meaning (split on , ; and strip parentheticals, no un-stripped whole); entries with a parenthetical containing kana/kanji are never emitted (DB data untouched).

@@ -41,11 +41,52 @@ function tzSchema() {
 }
 
 /**
- * Bump whenever the tool set or a tool's schema changes (date + counter). claude.ai caches
+ * Date part of server_version: bump on release. The rest is tools_hash (see below), so a changed
+ * tool schema always changes server_version without anyone remembering. claude.ai caches
  * tools/list until the connector is reconnected, and this stateless server can't push
- * tools/list_changed, so session_start reports it and the instructions say what to do.
+ * tools/list_changed, so session_start reports both and the instructions say what to do.
  */
-export const SERVER_VERSION = "2026-11-20.3";
+export const SERVER_DATE = "2026-11-21";
+
+/** Stable JSON: object keys sorted, so the hash doesn't depend on property order. */
+function stableJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stableJson).join(",")}]`;
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o).filter((k) => o[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${stableJson(o[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(v) ?? "null";
+}
+
+export interface ToolDef {
+  name: string;
+  description?: string;
+  inputSchema?: unknown;
+  annotations?: unknown;
+}
+
+/** First 12 hex chars of the sha-256 of the tool definitions (names, descriptions, input JSON schemas), order-independent. */
+export async function hashToolDefs(defs: readonly ToolDef[]): Promise<string> {
+  const sorted = [...defs].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  const bytes = new TextEncoder().encode(stableJson(sorted));
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return [...digest].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 12);
+}
+
+/** Tool definitions as tools/list lists them (input schemas as JSON Schema). */
+export function listToolDefs(server: McpServer): ToolDef[] {
+  const reg = (server as unknown as {
+    _registeredTools: Record<string, { description?: string; inputSchema?: z.ZodType; annotations?: unknown; enabled: boolean }>;
+  })._registeredTools;
+  return Object.entries(reg)
+    .filter(([, t]) => t.enabled)
+    .map(([name, t]) => ({
+      name,
+      description: t.description,
+      inputSchema: t.inputSchema ? z.toJSONSchema(t.inputSchema, { io: "input" }) : { type: "object", properties: {} },
+      annotations: t.annotations,
+    }));
+}
 
 const reviewFlags = {
   verified: z
@@ -89,11 +130,12 @@ Kana faces: only the reading matters. Answers in romaji (neko) or kanji produced
 Rate honestly: again = not recalled, hard = recalled with effort, good = recalled, easy = instant.
 Unverifiable readings: when a kanji>kana answer is the shown kanji itself (accept_with_warning) or a different kanji with the same reading produced by IME (e.g. 見ず for 水), count it as correct but send verified: false with the rating.
 Volunteered answers: when the learner also answers faces whose cards weren't asked (or aren't due), either leave them out or send them with early: true (preferred: kept in history, schedule unchanged). Never rate them as normal reviews.
-Counts: due_reviews = available now + held_back (held back for a few hours after a sibling direction was reviewed; held_back lists them with "until"). Don't tell the learner cards are missing when they are only held back.
+Counts: due_reviews = available now + held_back (held back for a few hours after a sibling direction was reviewed). held_back.cards lists only held-back due REVIEWS (with "until"); held-back new cards are just a count (held_back.new_cards). Don't tell the learner cards are missing when they are only held back.
 
 Times: every timestamp is ISO UTC plus a "<field>_local" version in the learner's time zone (tz parameter, default ${DEFAULT_TZ}). reviewed_at accepts ISO with offset (2026-11-20T15:04+01:00) or local "YYYY-MM-DD HH:mm" read in tz. Past times are fine (lesson ratings entered later replay the history).
 
-Versions: session_start returns server_version. If it differs from the one seen earlier in this conversation, or a tool these instructions mention seems missing, ask the learner to reconnect the connector (claude.ai caches the tool list until reconnect).
+Versions: session_start returns server_version and tools_hash. If server_version/tools_hash differs from the one seen earlier in this conversation or in your notes, the tool schemas changed: ask the user to reconnect the connector (Settings → Connectors) so the new fields become available. Same if a tool these instructions mention seems missing.
+Unclosed sessions: session_start auto-closes the learner's sessions open for over 12 h and lists younger ones as open_sessions; close or ignore them. "since" starts at the latest end of any closed session.
 
 Editing: add_words with on_conflict "update" upserts; update_note / update_notes merge tags (replace_tags to replace, remove_tags to remove); bulk_import for large lists; lookup to check which words already exist. Only delete notes when the learner explicitly asks.`;
 
@@ -151,6 +193,11 @@ const noteEdit = {
 
 export function buildServer(store: Store): McpServer {
   const server = new McpServer({ name: "flash-mcp", version: SERVER_VERSION }, { instructions: INSTRUCTIONS });
+  registerTools(server, store);
+  return server;
+}
+
+function registerTools(server: McpServer, store: Store): void {
   const ro = { readOnlyHint: true, openWorldHint: false };
   const rw = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 
@@ -159,10 +206,11 @@ export function buildServer(store: Store): McpServer {
     {
       description:
         "Open a study session (call once at the start of every lesson/quiz). Returns session_id (pass it to session_end), and per deck: due counts per direction " +
-        "(due reviews, new available, learning), cards rated again/hard since `since` (default: end of the last session, else 7 days ago) with their latest rating, " +
+        "(due reviews, new available, learning), cards rated again/hard since `since` (default: the latest end of any closed session, auto-closed ones included, else 7 days ago) with their latest rating, " +
         "the struggling notes (lapses, again/hard since `since`, or fragile after 2+ reviews; up to 15, often fewer), reviews since grouped by source (chat/lesson/self/ui), and the first due prompts (like get_due). " +
         "Counts: decks[].due.due_reviews = available_now + held_back (cards held back for a few hours because a sibling direction was just reviewed). " +
-        "server_version: compare with earlier calls in this conversation (see instructions).",
+        "server_version / tools_hash: compare with earlier calls in this conversation (see instructions). " +
+        "open_sessions: sessions younger than 12 h that were never closed (session_id, started_at, age_hours, kind): close them with session_end (pass their reviews) or ignore them; older unclosed sessions are auto-closed here (closed at their last logged review) and a later session_end on one is still accepted.",
       inputSchema: z.object({
         decks: z.array(short()).max(50).optional().describe("Deck names; all decks when omitted"),
         kind: z.enum(["text", "voice"]).optional().describe("voice: reviews in session_end default to source 'lesson'; text: 'chat'"),
@@ -174,14 +222,14 @@ export function buildServer(store: Store): McpServer {
       }),
       annotations: rw,
     },
-    wrap(async (a, tz) => ({ server_version: SERVER_VERSION, ...(await store.sessionStart({ ...a, tz })) })),
+    wrap(async (a, tz) => ({ server_version: SERVER_VERSION, tools_hash: TOOLS_HASH, ...(await store.sessionStart({ ...a, tz })) })),
   );
 
   server.registerTool(
     "session_end",
     {
       description:
-        "Close a study session and write everything in ONE atomic batch: add_words / add_basic first, then all reviews, then the session's end time (used as `since` by the next session_start). " +
+        "Close a study session (also accepted for one that session_start auto-closed after 12 h; ending twice is rejected) and write everything in ONE atomic batch: add_words / add_basic first, then all reviews, then the session's end time (used as `since` by the next session_start). " +
         "Each review names its card by card_id, or by content: a word {kanji?, kana, direction, rating} (kanji+kana must match exactly; kana alone matches the kana-only note or the single note with that kana; deck narrows), " +
         "or a basic note {front, direction?}. An unknown word is created first when meaning is given (deck's default directions plus the reviewed direction), an unknown basic note when back is given. " +
         "Several reviews of one card apply in reviewed_at order (older than its last review → history replayed). " +
@@ -439,7 +487,7 @@ export function buildServer(store: Store): McpServer {
         "for sibling_gap_hours after a sibling was reviewed, so answers don't leak. " +
         "after_answer {trap, notes}: show it only AFTER the learner answered, never with the prompt (the top-level `notes` is the same after-answer material). " +
         "include_not_due: practice ahead of schedule (not-yet-due cards after the due ones); rating such cards counts as an early review. " +
-        "Counts: due_review_cards = due reviews askable now (all of them, also those beyond limit); held_back lists due cards held back by the sibling gap (with `until`); " +
+        "Counts: due_review_cards = due reviews askable now (all of them, also those beyond limit); held_back.cards lists due reviews held back by the sibling gap (with `until`; new cards held back are only counted in held_back.new_cards); " +
         "due_review_cards + held_back.due_review_cards = all due reviews (session_start's due_reviews). returned_cards = cards in the returned prompts.",
       inputSchema: z.object({
         deck: short().optional(),
@@ -517,5 +565,15 @@ export function buildServer(store: Store): McpServer {
     wrap(async (a) => store.noteHistory(a.note_id)),
   );
 
-  return server;
 }
+
+// Computed once per isolate from the real tool definitions (handlers are never called on the probe).
+export const TOOLS_HASH = await hashToolDefs(
+  (() => {
+    const probe = new McpServer({ name: "flash-mcp", version: "probe" });
+    registerTools(probe, undefined as unknown as Store);
+    return listToolDefs(probe);
+  })(),
+);
+/** `<date>+<tools_hash>`: changes whenever a tool name, description or input schema changes. */
+export const SERVER_VERSION = `${SERVER_DATE}+${TOOLS_HASH}`;

@@ -48,6 +48,8 @@ export const FIELD_MAX = 2000;
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
 const DEFAULT_SIBLING_GAP = 6 * HOUR;
+/** Sessions without session_end older than this are auto-closed by session_start. */
+const OPEN_SESSION_MAX = 12 * HOUR;
 
 interface NoteRow {
   id: string;
@@ -1069,12 +1071,12 @@ export class Store {
       held_back: {
         due_review_cards: held.filter((r) => r.state !== 0).length,
         new_cards: held.filter((r) => r.state === 0).length,
-        cards: held.slice(0, 100).map((r) => ({
+        // Only held-back due reviews are listed; held-back new cards are just counted (new_cards).
+        cards: held.filter((r) => r.state !== 0).slice(0, 100).map((r) => ({
           card_id: r.card_id,
           note_id: r.note_id,
           direction: r.direction,
           ...faceFields(r),
-          is_new: r.state === 0,
           until: iso(r.held_since! + gap),
         })),
       },
@@ -1260,6 +1262,27 @@ export class Store {
     const unknown = wanted ? wanted.filter((d) => !allDecks.some((x) => x.name === d)) : [];
     const decks = wanted ? allDecks.filter((d) => wanted.includes(d.name)) : allDecks;
 
+    // Sessions never closed with session_end: older than 12 h are closed here (at their last
+    // logged review, else their start); younger ones are reported so the agent can close them.
+    await this.db
+      .prepare(
+        `UPDATE study_sessions SET closed_by = 'auto',
+           ended_at = MAX(started_at, COALESCE((SELECT MAX(r.reviewed_at) FROM review_log r WHERE r.session_id = study_sessions.id AND r.user_id = study_sessions.user_id), started_at))
+         WHERE user_id = ? AND ended_at IS NULL AND started_at < ?`,
+      )
+      .bind(this.userId, now - OPEN_SESSION_MAX)
+      .run();
+    const { results: openRows } = await this.db
+      .prepare(`SELECT id, kind, started_at FROM study_sessions WHERE user_id = ? AND ended_at IS NULL ORDER BY started_at`)
+      .bind(this.userId)
+      .all<{ id: string; kind: string | null; started_at: number }>();
+    const openSessions = openRows.map((o) => ({
+      session_id: o.id,
+      started_at: iso(o.started_at),
+      age_hours: Math.round(((now - o.started_at) / HOUR) * 10) / 10,
+      kind: o.kind,
+    }));
+
     let since: number;
     let sinceSource: string;
     if (opts.since != null && opts.since !== "") {
@@ -1383,6 +1406,7 @@ export class Store {
       since: iso(since),
       since_source: sinceSource,
       ...(unknown.length ? { unknown_decks: unknown } : {}),
+      open_sessions: openSessions,
       decks: perDeck,
       ...(due ? { due } : {}),
     };
@@ -1420,9 +1444,10 @@ export class Store {
     const session = await this.db
       .prepare(`SELECT * FROM study_sessions WHERE id = ? AND user_id = ?`)
       .bind(sessionId, this.userId)
-      .first<{ id: string; kind: string | null; decks: string | null; since: number; started_at: number; ended_at: number | null }>();
+      .first<{ id: string; kind: string | null; decks: string | null; since: number; started_at: number; ended_at: number | null; closed_by: string | null }>();
     if (!session) throw new UserError(`No study session ${sessionId} (call session_start first)`);
-    if (session.ended_at != null) throw new UserError(`Session ${sessionId} already ended at ${iso(session.ended_at)}; start a new one`);
+    // An auto-closed session (no session_end ever recorded) may still be ended once; the guard below keeps that single-shot.
+    if (session.ended_at != null && session.closed_by !== "auto") throw new UserError(`Session ${sessionId} already ended at ${iso(session.ended_at)}; start a new one`);
     const defaultSource: ReviewSource = input.source ?? (session.kind === "voice" ? "lesson" : "chat");
 
     // ---- validation (throws, nothing written) ----
@@ -1663,7 +1688,7 @@ export class Store {
     // whole transaction with a UNIQUE error -> nothing is written twice.
     w.first.push(
       this.db
-        .prepare(`UPDATE study_sessions SET ended_at = ?, summary = ? WHERE id = ? AND user_id = ? AND ended_at IS NULL`)
+        .prepare(`UPDATE study_sessions SET ended_at = ?, summary = ?, closed_by = 'session_end' WHERE id = ? AND user_id = ? AND (ended_at IS NULL OR closed_by = 'auto')`)
         .bind(now, JSON.stringify(summary), sessionId, this.userId),
       this.db
         .prepare(`INSERT INTO study_sessions (id, user_id, since, started_at) SELECT ?, ?, 0, 0 WHERE changes() = 0`)
