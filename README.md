@@ -21,9 +21,19 @@ See `plan.md` for the design.
   kanji/kana instead of id).
 - Review: `get_due` (`ask_mode`: grouped / same_script / single; `include_not_due`), `rate`,
   `stats`, `note_history`.
-- Notes: `add_words` (`on_conflict: skip|update`), `add_basic`, `bulk_import` (JSON rows or CSV,
-  up to 1000), `lookup` (does this word exist? up to 500), `search_notes`, `update_note`,
+- Notes: `add_words` (`on_conflict: skip|update|merge`), `add_basic` (`accept` for other correct
+  answers), `bulk_import` (JSON rows or CSV, up to 1000; per-row `directions`, `accept`, `schedule`),
+  `lookup` (does this word exist? up to 500; `deck_only`), `search_notes`, `update_note`,
   `update_notes`, `set_directions`, `delete_note` (needs `confirm: true`).
+- Grading: `get_pending_grading` lists answers the learner sent from the phone with "Grade later";
+  grade them with `rate` / `session_end` (optional `feedback`, shown in the UI).
+- Migration: `set_schedule` gives existing cards the schedule they had in another tool.
+- `settings` (e.g. `furigana_known_days`).
+
+Furigana: write `{今日|きょう}` in front, back, notes, trap or `extra.example`. A bare `{漢字}` takes
+the reading of the single word note with that kanji face (otherwise it's reported in
+`furigana_problems`). A reading is hidden once the word's kanji>kana card is in review with
+stability ≥ `furigana_known_days` (default 7).
 - Decks: `list_decks`, `create_deck`, `update_deck` (default directions, optionally applied to
   existing notes).
 

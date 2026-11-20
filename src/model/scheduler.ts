@@ -70,12 +70,68 @@ export function applyReview(s: SchedState, rating: number, at: number): SchedSta
  * with a timestamp earlier than the card's last review (e.g. ratings from a
  * lesson entered the next day, after a self-review already happened).
  */
-export function replay(createdAt: number, reviews: ReadonlyArray<{ rating: number; reviewed_at: number }>): SchedState {
+export function replay(
+  createdAt: number,
+  reviews: ReadonlyArray<{ rating: number; reviewed_at: number }>,
+  initial?: SchedState | null,
+): SchedState {
   const sorted = [...reviews].sort((a, b) => a.reviewed_at - b.reviewed_at);
+  if (initial) {
+    // Imported schedule: it already accounts for everything up to its last_review.
+    const from = initial.last_review ?? -Infinity;
+    let s = initial;
+    for (const r of sorted) if (r.reviewed_at >= from) s = applyReview(s, r.rating, r.reviewed_at);
+    return s;
+  }
   const start = Math.min(createdAt, sorted[0]?.reviewed_at ?? createdAt);
   let s = emptyState(start);
   for (const r of sorted) s = applyReview(s, r.rating, r.reviewed_at);
   return s;
+}
+
+/** A schedule imported from another tool (all times epoch ms). */
+export interface ScheduleInput {
+  state?: string | number;
+  due: number;
+  stability?: number;
+  difficulty?: number;
+  last_review?: number;
+  reps?: number;
+  lapses?: number;
+}
+
+const STATE_BY_NAME: Record<string, number> = { new: State.New, learning: State.Learning, review: State.Review, relearning: State.Relearning };
+
+/**
+ * Turn an imported schedule into a card state. Defaults: state review, last_review = due - stability
+ * (else due, at most now), stability = the interval from last_review to due (at least 0.1 day), difficulty 5, reps 1, lapses 0.
+ * Throws an Error with a readable message on bad values.
+ */
+export function importedState(s: ScheduleInput, now: number): SchedState {
+  const state = s.state == null ? State.Review : typeof s.state === "number" ? s.state : STATE_BY_NAME[String(s.state).toLowerCase()];
+  if (state == null || ![0, 1, 2, 3].includes(state)) throw new Error(`unknown state "${s.state}" (new|learning|review|relearning)`);
+  if (!Number.isFinite(s.due)) throw new Error("due is required (ISO time)");
+  if (state === State.New) return { ...emptyState(now), due: s.due };
+  const last = s.last_review ?? Math.min(now, s.stability != null ? s.due - s.stability * 86_400_000 : s.due);
+  if (!Number.isFinite(last)) throw new Error("bad last_review");
+  if (last > now + 5 * 60_000) throw new Error("last_review is in the future");
+  const interval = Math.max(0, (s.due - last) / 86_400_000);
+  const stability = s.stability ?? Math.max(0.1, interval);
+  const difficulty = s.difficulty ?? 5;
+  if (!(stability > 0)) throw new Error("stability must be > 0 (days)");
+  if (!(difficulty >= 1 && difficulty <= 10)) throw new Error("difficulty must be between 1 and 10");
+  return {
+    due: s.due,
+    stability,
+    difficulty,
+    elapsed_days: 0,
+    scheduled_days: Math.round(interval),
+    learning_steps: 0,
+    reps: s.reps ?? 1,
+    lapses: s.lapses ?? 0,
+    state,
+    last_review: last,
+  };
 }
 
 /** Probability of recall right now (0..1), or null for a never-reviewed card. */

@@ -43,24 +43,38 @@ button.link { background: none; border: none; padding: 4px 6px; color: var(--mut
 
 header.top {
   position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line);
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 12px;
+  display: flex; align-items: center; gap: 4px; padding: 6px 8px; padding-top: max(6px, env(safe-area-inset-top));
 }
-.brand { font-weight: 700; letter-spacing: .02em; }
-nav.tabs { display: flex; gap: 2px; }
-nav.tabs a { padding: 6px 10px; border-radius: 8px; color: var(--muted); }
+.brand { font-weight: 700; letter-spacing: .02em; padding: 0 6px; }
+nav.tabs { display: flex; gap: 2px; flex: 1; min-width: 0; }
+nav.tabs a { padding: 8px 10px; border-radius: 8px; color: var(--muted); white-space: nowrap; }
 nav.tabs a.on { background: var(--soft); color: var(--fg); font-weight: 600; text-decoration: none; }
-.top .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.top select { padding: 5px 8px; max-width: 42vw; }
-#email { max-width: 28vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 520px) { #email { display: none; } }
+.gear { font-size: 1.15rem; line-height: 1; padding: 8px 10px; border-radius: 8px; color: var(--muted); }
+.gear.on { background: var(--soft); color: var(--fg); text-decoration: none; }
+@media (max-width: 400px) { .brand { display: none; } nav.tabs a { padding: 8px 8px; } }
 
-main { max-width: 860px; margin: 0 auto; padding: 12px; }
+main { max-width: 860px; margin: 0 auto; padding: 12px 12px max(24px, env(safe-area-inset-bottom)); }
 .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
 .stack > * + * { margin-top: 12px; }
 h2 { font-size: 1.05rem; margin: 18px 0 8px; }
 
 /* Review */
-.rv-bar { display: flex; justify-content: space-between; font-size: .85rem; color: var(--muted); margin-bottom: 8px; }
+.rv-bar { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: .82rem; color: var(--muted); margin-bottom: 8px; align-items: center; }
+.rv-bar .deckname { margin-left: auto; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45vw; }
+.banner { display: block; background: var(--new-bg); color: var(--accent); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: .9rem; font-weight: 600; }
+.banner:hover { text-decoration: none; }
+.furi-toggle { font-size: .8rem; padding: 3px 8px; }
+.furi-toggle.on { background: var(--new-bg); color: var(--accent); border-color: var(--accent); }
+rt { font-size: .5em; font-weight: 400; color: var(--muted); }
+.prompt rt { font-size: .4em; }
+.later { width: 100%; margin-top: 6px; }
+.later.on { background: var(--new-bg); color: var(--accent); border-color: var(--accent); font-weight: 700; }
+.later.big { padding: 11px; font-weight: 600; border-color: var(--accent); color: var(--accent); }
+.later.big.on { background: var(--accent); color: var(--accent-fg); }
+.trap { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
+.teacher { background: var(--new-bg); border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
+.teacher .who { font-size: .78rem; color: var(--accent); font-weight: 700; }
+.also { font-size: .85rem; color: var(--muted); margin: -4px 0 8px 1.9em; }
 .rv-meta { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); }
 .badge { font-size: .72rem; padding: 1px 7px; border-radius: 99px; background: var(--new-bg); color: var(--accent); font-weight: 600; }
 .prompt { text-align: center; margin: 10px 0 14px; overflow-wrap: anywhere; white-space: pre-wrap; font-weight: 500; }
@@ -139,8 +153,18 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 }
 #toast.show { opacity: 1; pointer-events: auto; }
 #toast.err { background: var(--bad); color: #fff; }
-.rv-toggles { display: flex; gap: 14px; flex-wrap: wrap; font-size: .85rem; margin: 0 0 8px; opacity: .85; }
-.rv-toggles .toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+/* Settings */
+.set-group { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 14px; }
+.set-group h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0; padding: 10px 14px 0; }
+.set-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; min-height: 52px; }
+.set-row + .set-row { border-top: 1px solid var(--line); }
+.set-row .lbl { flex: 1; min-width: 0; }
+.set-row .lbl small { display: block; color: var(--muted); font-size: .8rem; }
+.set-row select, .set-row input[type=number] { max-width: 50%; }
+.set-row input[type=number] { width: 5.5em; }
+.set-row input[type=checkbox] { width: 22px; height: 22px; flex: none; }
+.feed-item { border-top: 1px solid var(--line); padding: 10px 0; }
+.feed-item:first-child { border-top: none; }
 .kb { display: inline-block; min-width: 1.4em; padding: 0 .3em; border: 1px solid currentColor; border-radius: 4px; font-size: .75em; text-align: center; opacity: .65; }
 .warn-note { color: var(--warn); font-size: .85rem; margin-top: 2px; }
 </style>
@@ -153,11 +177,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     <a href="#/cards" data-tab="cards">Cards</a>
     <a href="#/stats" data-tab="stats">Stats</a>
   </nav>
-  <div class="right">
-    <select id="deck" aria-label="Deck filter"><option value="">All decks</option></select>
-    <span id="email" class="muted small"></span>
-    <button id="logout" class="link small" type="button">Log out</button>
-  </div>
+  <a href="#/settings" class="gear" data-tab="settings" title="Settings" aria-label="Settings">⚙︎</a>
 </header>
 <main id="main"></main>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -275,42 +295,53 @@ const fmtNum = (n, digits = 1) => (n == null || isNaN(n) ? "–" : Number(n).toF
 const fmtPct = (n) => (n == null || isNaN(n) ? "–" : Math.round(n <= 1 ? n * 100 : n) + "%");
 
 // ---------- shared state ----------
-const DECK_KEY = "flash.deck";
+// Per-device preferences (this phone); furigana_known_days is a server setting shared with the teacher.
+const store = {
+  get(k, d = "") { try { const v = localStorage.getItem("flash." + k); return v == null ? d : v; } catch { return d; } },
+  set(k, v) { try { if (v === "" || v == null) localStorage.removeItem("flash." + k); else localStorage.setItem("flash." + k, String(v)); } catch {} },
+};
 let decks = [];
-const curDeck = () => localStorage.getItem(DECK_KEY) || "";
+let me = null;
+const curDeck = () => store.get("deck");
 let seq = 0; // render token; stale async renders bail out
 
 async function loadTopBar() {
-  api("/api/me").then((me) => ($("#email").textContent = me?.email || "")).catch(() => {});
+  api("/api/me").then((m) => (me = m)).catch(() => {});
   let ok = true;
   try { decks = (await api("/api/decks")) || []; } catch { decks = []; ok = false; }
-  const sel = $("#deck");
-  const cur = curDeck();
-  sel.replaceChildren(h("option", { value: "" }, "All decks"),
-    ...decks.map((d) => h("option", { value: d.name }, `${d.name} (${d.due_reviews ?? 0} due)`)));
-  if (ok && cur && !decks.some((d) => d.name === cur)) localStorage.removeItem(DECK_KEY);
-  if (cur && !decks.some((d) => d.name === cur)) sel.append(h("option", { value: cur }, cur));
-  sel.value = curDeck();
+  if (ok && curDeck() && !decks.some((d) => d.name === curDeck())) store.set("deck", "");
 }
-$("#deck").addEventListener("change", (e) => {
-  if (e.target.value) localStorage.setItem(DECK_KEY, e.target.value);
-  else localStorage.removeItem(DECK_KEY);
-  route();
-});
-$("#logout").addEventListener("click", async () => {
+
+async function logout() {
   try {
     await fetch("/logout", { method: "POST", credentials: "same-origin", redirect: "manual",
       headers: { "X-Requested-With": "flash", "Content-Type": "application/json" }, body: "{}" });
   } catch {}
   location.href = "/login";
-});
+}
+
+// ---------- furigana ----------
+/** Text with furigana markup removed: {今日|きょう} → 今日. */
+const plain = (s) => String(s ?? "").replace(/\{([^{}|\n]+?)(?:\|[^{}|\n]*)?\}/g, "$1");
+/**
+ * Render a field: ruby spans from the API when it has furigana markup, else plain text.
+ * showAll: show every reading (the per-card furigana toggle), not only the ones still needed.
+ */
+function rich(item, field, text, showAll) {
+  const spans = item && item.ruby && item.ruby[field];
+  if (!spans) return plain(text);
+  return spans.map((sp) => (sp.reading && (sp.show || showAll))
+    ? h("ruby", null, sp.text, h("rp", null, "("), h("rt", null, sp.reading), h("rp", null, ")"))
+    : sp.text);
+}
+const hasRuby = (item) => !!(item && item.ruby && Object.values(item.ruby).some((sp) => sp.some((x) => x.reading)));
 
 // ---------- router ----------
 function route() {
   const tok = ++seq;
   const parts = (location.hash.replace(/^#\/?/, "") || "review").split("/");
   const tab = parts[0];
-  document.querySelectorAll("nav.tabs a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
+  document.querySelectorAll("[data-tab]").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
   main.replaceChildren();
   if (tab === "cards" && parts[1]) {
     let id;
@@ -319,9 +350,11 @@ function route() {
   }
   if (tab === "cards") return viewCards(tok);
   if (tab === "stats") return viewStats(tok);
+  if (tab === "settings") return viewSettings(tok);
+  if (tab === "feedback") return viewFeedback(tok);
   if (tab !== "review") {
     history.replaceState(null, "", "#/review");
-    document.querySelectorAll("nav.tabs a").forEach((a) => a.classList.toggle("on", a.dataset.tab === "review"));
+    document.querySelectorAll("[data-tab]").forEach((a) => a.classList.toggle("on", a.dataset.tab === "review"));
   }
   return viewReview(tok);
 }
@@ -329,42 +362,39 @@ window.addEventListener("hashchange", route);
 const curTab = () => (location.hash.replace(/^#\/?/, "") || "review").split("/")[0];
 
 // ---------- Review ----------
-const R = { queue: [], loaded: false, deckKey: null, done: 0, counts: null,
-  phase: "ask", results: null, ratings: {}, answers: {}, busy: false, gen: 0,
+const R = { queue: [], loaded: false, key: null, done: 0, counts: null,
+  phase: "ask", results: null, ratings: {}, answers: {}, busy: false, gen: 0, furiAll: false,
   // Practice: review cards that aren't due yet. Ratings are only saved if `record` is on.
-  practice: localStorage.getItem("flash.practice") === "1",
-  record: localStorage.getItem("flash.practiceRecord") === "1",
+  practice: store.get("practice") === "1",
+  record: store.get("practiceRecord") === "1",
+  pending: 0, unseen: 0,
   seen: new Set() };
+const askMode = () => store.get("askMode", "grouped");
+const reviewKey = () => [curDeck(), askMode(), R.practice, R.record].join("|");
+const saving = () => !R.practice || R.record;
 
 async function loadDue() {
   const params = R.practice
-    ? { deck: curDeck(), limit: 100, new_limit: 100, include_not_due: "true" }
-    : { deck: curDeck(), limit: 20 };
-  const d = await api("/api/due" + qs(params));
+    ? { deck: curDeck(), limit: 100, new_limit: 100, include_not_due: "true", ask_mode: askMode() }
+    : { deck: curDeck(), limit: 20, ask_mode: askMode() };
+  const [d, pend, fb] = await Promise.all([
+    api("/api/due" + qs(params)),
+    api("/api/pending" + qs({ deck: curDeck(), limit: 1 })).catch(() => null),
+    api("/api/feedback" + qs({ unseen: "1", limit: 1 })).catch(() => null),
+  ]);
   let items = (d && d.items) || [];
   // Unrecorded practice doesn't change schedules, so skip notes already practiced.
   if (R.practice && !R.record) items = items.filter((it) => !R.seen.has(it.note_id));
   R.queue = items;
   R.counts = d || {};
+  R.pending = pend ? pend.pending : 0;
+  R.unseen = fb ? fb.unseen : 0;
   R.loaded = true;
 }
 
-function practiceToggles() {
-  const reload = () => { R.loaded = false; R.seen.clear(); route(); };
-  const box = (label, checked, onchange, title) =>
-    h("label", { class: "toggle", title }, h("input", { type: "checkbox", checked: !!checked, onchange }), " " + label);
-  return h("div", { class: "rv-toggles" },
-    box("Practice (not due too)", R.practice, (e) => {
-      R.practice = e.target.checked; localStorage.setItem("flash.practice", R.practice ? "1" : "0"); reload();
-    }, "Review cards before they are due, e.g. for testing"),
-    R.practice ? box("record ratings", R.record, (e) => {
-      R.record = e.target.checked; localStorage.setItem("flash.practiceRecord", R.record ? "1" : "0"); reload();
-    }, "Off: practice answers are checked but not saved, so your schedule is untouched") : null);
-}
-
 async function viewReview(tok) {
-  if (!R.loaded || R.deckKey !== curDeck()) {
-    R.deckKey = curDeck(); R.done = 0;
+  if (!R.loaded || R.key !== reviewKey()) {
+    R.key = reviewKey(); R.done = 0;
     main.append(h("p", { class: "muted" }, "Loading…"));
     try { await loadDue(); } catch { if (tok === seq) main.replaceChildren(h("p", { class: "muted" }, "Could not load reviews.")); return; }
     if (tok !== seq) return;
@@ -373,37 +403,50 @@ async function viewReview(tok) {
   drawReview();
 }
 
-function resetItem() { R.gen++; R.phase = "ask"; R.results = null; R.ratings = {}; R.answers = {}; R.busy = false; }
+function resetItem() { R.gen++; R.phase = "ask"; R.results = null; R.ratings = {}; R.answers = {}; R.busy = false; R.furiAll = false; }
 const curItem = () => R.queue[0];
 const curPrompt = () => curItem()?.prompts?.[0];
+
+function topInfo() {
+  const c = R.counts || {};
+  const bar = h("div", { class: "rv-bar" },
+    h("span", null, `${c.due_review_cards ?? 0} due · ${c.new_cards_available ?? 0} new`),
+    R.pending ? h("a", { href: "#/feedback", title: "Answers waiting for your teacher" }, `${R.pending} to grade`) : null,
+    R.done ? h("span", null, `${R.done} done`) : null,
+    R.practice ? h("span", { class: "badge" }, R.record ? "practice · saved" : "practice · not saved") : null,
+    h("a", { class: "deckname", href: "#/settings", title: "Change deck and review settings" }, curDeck() || "All decks"));
+  const banner = R.unseen
+    ? h("a", { class: "banner", href: "#/feedback" }, `💬 ${R.unseen} new note${R.unseen === 1 ? "" : "s"} from your teacher`)
+    : null;
+  return [banner, bar];
+}
 
 function drawReview() {
   if (curTab() !== "review") return;
   const c = R.counts || {};
   const item = curItem();
   if (!item || !curPrompt()) {
-    main.replaceChildren(practiceToggles(), h("div", { class: "panel done" },
+    main.replaceChildren(...topInfo(), h("div", { class: "panel done" },
       h("div", { class: "big" }, R.practice ? "Nothing left to practice" : "All done"),
       h("p", { class: "muted" }, `${R.done} reviewed this session · ${c.due_review_cards ?? 0} due · ${c.new_cards_available ?? 0} new available`),
+      R.pending ? h("p", { class: "muted" }, `${R.pending} answer${R.pending === 1 ? "" : "s"} waiting for your teacher.`) : null,
       h("button", { onclick: async () => { R.loaded = false; R.seen.clear(); route(); } }, "Check again")));
     return;
   }
   const p = curPrompt();
   const shown = item.faces?.[p.show] ?? "";
-  const len = [...shown].length;
+  const len = [...plain(shown)].length;
   const size = len <= 4 ? "xl" : len <= 10 ? "l" : len <= 30 ? "m" : "s";
-  const bar = h("div", { class: "rv-bar" },
-    h("span", null, `${c.due_review_cards ?? 0} due · ${c.new_cards_available ?? 0} new`),
-    h("span", null, `${R.done} done · ${R.queue.length} left`),
-    R.practice ? h("span", { class: "badge" }, R.record ? "practice · saved" : "practice · not saved") : null);
   const meta = h("div", { class: "rv-meta" },
     h("span", null, askLabel(p.ask.map((a) => a.face))),
     item.is_new ? h("span", { class: "badge" }, "new") : null,
-    h("span", { style: "margin-left:auto" }, item.deck || ""));
+    h("span", { style: "margin-left:auto" }, curDeck() ? "" : item.deck || ""),
+    hasRuby(item) ? h("button", { type: "button", class: "furi-toggle" + (R.furiAll ? " on" : ""), "aria-pressed": R.furiAll ? "true" : "false",
+      title: "Show all readings on this card", onclick: () => { R.furiAll = !R.furiAll; drawReview(); } }, "ふりがな") : null);
   const card = h("div", { class: "panel" }, meta,
-    h("div", { class: "prompt " + size, lang: langFor(p.show, shown) }, shown),
+    h("div", { class: "prompt " + size, lang: langFor(p.show, plain(shown)) }, rich(item, p.show, shown, R.furiAll)),
     R.phase === "ask" ? askForm(p) : resultView(item, p));
-  main.replaceChildren(practiceToggles(), bar, card);
+  main.replaceChildren(...topInfo(), card);
   if (R.phase === "ask") card.querySelector("input")?.focus();
   else card.querySelector("#next")?.focus({ preventScroll: true });
 }
@@ -430,11 +473,14 @@ function askForm(p) {
     h("button", { onclick: doFlip }, "Show answer")));
 }
 
+/** Free answers (basic notes: sentences, "Say in Japanese") can't be judged by exact match. */
+const freeAnswer = (item, a) => item.type === "basic" && (a.face === "back" || a.face === "front");
+
 async function doCheck() {
   if (R.busy) return;
   const p = curPrompt();
   if (!p) return;
-  const gen = R.gen;
+  const gen = R.gen, item = curItem();
   R.busy = true; $("#check") && ($("#check").disabled = true);
   try {
     const res = await api("/api/check", "POST",
@@ -444,7 +490,11 @@ async function doCheck() {
     for (const r of res || []) R.results[r.card_id] = r;
     for (const a of p.ask) {
       const r = R.results[a.card_id];
-      R.ratings[a.card_id] = r && r.correct ? "good" : r && r.close ? "hard" : "again";
+      const typed = (R.answers[a.card_id] || "").trim();
+      // A sentence that doesn't match exactly is left for the teacher by default.
+      R.ratings[a.card_id] = r && r.correct ? "good"
+        : freeAnswer(item, a) && typed && saving() ? "later"
+        : r && r.close ? "hard" : "again";
     }
     R.phase = "checked";
   } catch {} finally { if (gen === R.gen) R.busy = false; }
@@ -458,27 +508,44 @@ function resultView(item, p) {
   const rows = p.ask.map((a) => {
     const r = R.results?.[a.card_id];
     const ans = (R.answers[a.card_id] || "").trim();
-    const cls = !R.results ? "" : r?.correct ? "r-ok" : r?.close ? "r-close" : "r-bad";
-    const mark = !R.results ? "·" : r?.correct ? (r?.warning ? "✓⚠" : "✓") : r?.close ? "~" : "✗";
+    // An answer left to the teacher isn't judged here: no strike-through.
+    const toTeacher = R.ratings[a.card_id] === "later";
+    const cls = !R.results || toTeacher ? "" : r?.correct ? "r-ok" : r?.close ? "r-close" : "r-bad";
+    const mark = toTeacher ? "?" : !R.results ? "·" : r?.correct ? (r?.warning ? "✓⚠" : "✓") : r?.close ? "~" : "✗";
     const expected = (r?.expected?.length ? r.expected : a.accept) || [];
     const lang = langFor(a.face, expected.join(" "));
+    const rated = R.ratings[a.card_id];
     const seg = h("div", { class: "seg", role: "group", "aria-label": "Rate " + (FACE_LABEL[a.face] || a.face) },
-      RATINGS.map((rt, i) => h("button", { type: "button", "data-r": rt, class: R.ratings[a.card_id] === rt ? "on" : null,
-        "aria-pressed": R.ratings[a.card_id] === rt ? "true" : "false",
+      RATINGS.map((rt, i) => h("button", { type: "button", "data-r": rt, class: rated === rt ? "on" : null,
+        "aria-pressed": rated === rt ? "true" : "false",
         title: p.ask.length === 1 ? `${rt} (${i + 1})` : rt,
         onclick: () => { R.ratings[a.card_id] = rt; drawReview(); } }, rt[0].toUpperCase() + rt.slice(1))));
+    // "Grade later": keep the typed answer for the teacher; the card waits until graded.
+    const later = saving() ? h("button", { type: "button", class: "later" + (freeAnswer(item, a) ? " big" : "") + (rated === "later" ? " on" : ""),
+      "aria-pressed": rated === "later" ? "true" : "false", disabled: !ans,
+      title: ans ? "Send your answer to your teacher; this card waits until it is graded" + (p.ask.length === 1 ? " (5)" : "") : "Type an answer first",
+      onclick: () => { R.ratings[a.card_id] = "later"; drawReview(); } }, "Grade later (teacher)") : null;
+    // Model answer: with furigana when the field has markup; other accepted answers below.
+    const model = item.ruby && item.ruby[a.face] ? rich(item, a.face, item.faces[a.face], R.furiAll) : null;
+    const others = model ? expected.filter((x) => x !== plain(item.faces[a.face]) && !/^[ぁ-ゖー\s、。！？]+$/.test(x)) : [];
     return h("div", { class: "result " + cls },
       h("div", { class: "head" }, h("span", { class: "mark" }, mark),
         h("span", { class: "muted small" }, FACE_LABEL[a.face] || a.face, r?.close && !r?.correct ? " · almost" : ""),
-        R.results ? h("span", { class: "yours", lang: ans ? lang : null }, ans || "(blank)") : null),
-      h("div", { class: "expected", lang }, expected.join(" · ")),
+        R.results ? h("span", { class: "yours", lang: ans ? langFor(a.face, ans) : null }, ans || "(blank)") : null),
+      h("div", { class: "expected", lang }, model || expected.join(" · ")),
+      others.length ? h("div", { class: "also", lang }, "also: " + others.join(" · ")) : null,
       r?.warning ? h("div", { class: "warn-note" }, "⚠ " + r.warning) : null,
-      seg);
+      seg, later);
   });
   const ready = p.ask.every((a) => R.ratings[a.card_id]);
+  const aa = item.after_answer || {};
+  const fb = (aa.feedback || []).filter((f) => p.ask.some((a) => a.direction === f.direction));
   return h("div", null, rows,
     h("div", { class: "actions", style: "margin-top:10px" },
       h("button", { class: "primary", id: "next", disabled: !ready || R.busy, onclick: doNext }, "Next ⏎")),
+    aa.trap ? h("div", { class: "trap", lang: isJaText(aa.trap) ? "ja" : null }, "⚠ ", rich(item, "trap", aa.trap, R.furiAll)) : null,
+    fb.map((f) => h("div", { class: "teacher" }, h("div", { class: "who" }, "Teacher, last time" + (f.answer ? ` (you: ${f.answer})` : "")),
+      h("div", { class: "pre", lang: isJaText(f.feedback) ? "ja" : null }, f.feedback))),
     fullNote(item));
 }
 
@@ -486,8 +553,10 @@ function fullNote(item) {
   const f = item.faces || {};
   const keys = item.type === "basic" ? ["front", "back"] : ["kanji", "kana", "meaning"];
   const dl = h("dl", null, keys.filter((k) => f[k]).map((k) =>
-    [h("dt", null, k), h("dd", { lang: langFor(k, f[k]), class: "pre" }, f[k])]));
-  if (item.notes) dl.append(h("dt", null, "notes"), h("dd", { class: "pre" }, item.notes));
+    [h("dt", null, k), h("dd", { lang: langFor(k, plain(f[k])), class: "pre" }, rich(item, k, f[k], R.furiAll))]));
+  const aa = item.after_answer || {};
+  if (item.notes) dl.append(h("dt", null, "notes"), h("dd", { class: "pre" }, rich(item, "notes", item.notes, R.furiAll)));
+  if (aa.example) dl.append(h("dt", null, "example"), h("dd", { class: "pre", lang: "ja" }, rich(item, "example", aa.example, R.furiAll)));
   return h("div", { class: "fullnote" }, dl,
     h("div", { class: "small", style: "margin-top:6px;text-align:right" },
       h("a", { href: "#/cards/" + encodeURIComponent(item.note_id) }, "Edit note")));
@@ -498,8 +567,14 @@ async function doNext() {
   if (R.busy || !p || !p.ask.every((a) => R.ratings[a.card_id])) return;
   const item = curItem(), gen = R.gen;
   R.busy = true; $("#next") && ($("#next").disabled = true);
+  const later = p.ask.filter((a) => R.ratings[a.card_id] === "later");
+  const rated = p.ask.filter((a) => R.ratings[a.card_id] !== "later");
   try {
-    if (!R.practice || R.record) await api("/api/rate", "POST", { reviews: p.ask.map((a) => {
+    if (saving() && later.length) {
+      await api("/api/grade-later", "POST", { answers: later.map((a) => ({ card_id: a.card_id, answer: (R.answers[a.card_id] || "").trim() })) });
+      R.pending += later.length;
+    }
+    if (saving() && rated.length) await api("/api/rate", "POST", { reviews: rated.map((a) => {
       const ans = (R.answers[a.card_id] || "").trim();
       const review = { card_id: a.card_id, rating: R.ratings[a.card_id] };
       if (ans && R.phase === "checked" && R.results) {
@@ -510,6 +585,7 @@ async function doNext() {
       return review;
     }) });
   } catch { if (gen === R.gen) { R.busy = false; drawReview(); } return; }
+  if (later.length) toast("Saved for your teacher", false);
   if (R.queue[0] === item) R.queue.shift();
   R.seen.add(item.note_id);
   R.done++;
@@ -523,10 +599,92 @@ document.addEventListener("keydown", (e) => {
   const p = curPrompt();
   if (!p || (e.target.closest && e.target.closest("header"))) return;
   if (e.key === "Enter" && e.target.tagName !== "A") { e.preventDefault(); doNext(); }
-  else if (p.ask.length === 1 && /^[1-4]$/.test(e.key) && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) {
-    R.ratings[p.ask[0].card_id] = RATINGS[+e.key - 1]; drawReview();
+  else if (p.ask.length === 1 && /^[1-5]$/.test(e.key) && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) {
+    if (e.key === "5" && !(saving() && (R.answers[p.ask[0].card_id] || "").trim())) return;
+    R.ratings[p.ask[0].card_id] = e.key === "5" ? "later" : RATINGS[+e.key - 1]; drawReview();
   }
 });
+
+// ---------- Settings ----------
+async function viewSettings(tok) {
+  let server = null;
+  try { server = await api("/api/settings"); } catch {}
+  if (tok !== seq) return;
+  const row = (label, hint, control) => h("label", { class: "set-row" }, h("span", { class: "lbl" }, label, hint ? h("small", null, hint) : null), control);
+  const group = (title, ...rows) => h("section", { class: "set-group" }, h("h3", null, title), rows);
+  const reload = () => { R.loaded = false; R.seen.clear(); };
+
+  const deckSel = h("select", { onchange: (e) => { store.set("deck", e.target.value); reload(); } },
+    h("option", { value: "" }, "All decks"),
+    decks.map((d) => h("option", { value: d.name }, `${d.name} (${d.due_reviews ?? 0} due)`)));
+  deckSel.value = curDeck();
+  const modeSel = h("select", { onchange: (e) => { store.set("askMode", e.target.value); reload(); } },
+    h("option", { value: "grouped" }, "All faces at once"),
+    h("option", { value: "same_script" }, "One keyboard at a time"),
+    h("option", { value: "single" }, "One card at a time"));
+  modeSel.value = askMode();
+  const recordBox = h("input", { type: "checkbox", checked: R.record, disabled: !R.practice, onchange: (e) => {
+    R.record = e.target.checked; store.set("practiceRecord", R.record ? "1" : "0"); reload(); } });
+  const practiceBox = h("input", { type: "checkbox", checked: R.practice, onchange: (e) => {
+    R.practice = e.target.checked; store.set("practice", R.practice ? "1" : "0"); recordBox.disabled = !R.practice; reload(); } });
+  const days = h("input", { type: "number", min: "0", max: "3650", step: "1", inputmode: "numeric",
+    value: server ? server.furigana_known_days : "", disabled: !server,
+    onchange: async (e) => {
+      const v = Number(e.target.value);
+      if (!Number.isFinite(v) || v < 0) { e.target.value = server.furigana_known_days; return; }
+      try { server = await api("/api/settings", "PUT", { furigana_known_days: v }); toast("Saved", false); reload(); }
+      catch { e.target.value = server.furigana_known_days; }
+    } });
+
+  main.replaceChildren(
+    group("Review",
+      row("Deck", null, deckSel),
+      row("Questions", "How many answers one card asks for. “One keyboard at a time” never mixes Japanese and English.", modeSel)),
+    group("Practice",
+      row("Practice ahead", "Also show cards that aren't due yet", practiceBox),
+      row("Save practice ratings", "Off: answers are checked but your schedule is untouched", recordBox)),
+    group("Furigana",
+      row("Hide a reading after", "Days of reliable reading (kanji → kana card) before its furigana is hidden. Shared with your teacher.",
+        h("span", { style: "display:flex;align-items:center;gap:6px" }, days, "days"))),
+    group("Teacher",
+      h("a", { class: "set-row", href: "#/feedback" }, h("span", { class: "lbl" }, "Feedback & answers to grade",
+        h("small", null, "Notes from your teacher, and answers you sent with “Grade later”")), "›")),
+    group("Account",
+      h("div", { class: "set-row" }, h("span", { class: "lbl" }, "Signed in", h("small", null, me?.email || "")),
+        h("button", { type: "button", onclick: logout }, "Log out"))));
+}
+
+// ---------- Teacher feedback ----------
+async function viewFeedback(tok) {
+  main.append(h("p", { class: "muted" }, "Loading…"));
+  let fb, pend;
+  try { [fb, pend] = await Promise.all([api("/api/feedback" + qs({ limit: 50 })), api("/api/pending" + qs({ limit: 100 }))]); }
+  catch { if (tok === seq) main.replaceChildren(h("p", { class: "muted" }, "Could not load feedback.")); return; }
+  if (tok !== seq) return;
+  const faceLine = (f, item) => f.type === "basic" || f.front != null
+    ? h("div", { lang: langFor("front", plain(f.front)) }, item ? rich(item, "front", f.front) : plain(f.front))
+    : h("div", { lang: "ja" }, f.kanji ? `${f.kanji} ` : "", f.kana || "", h("span", { class: "muted" }, " · " + (f.meaning || "")));
+  const fbItems = (fb.items || []).map((x) => h("div", { class: "feed-item" },
+    h("div", { class: "rv-meta" }, h("span", null, relTime(x.reviewed_at)), h("span", { class: "badge" }, x.rating),
+      !x.seen ? h("span", { class: "badge" }, "new") : null,
+      h("a", { style: "margin-left:auto", href: "#/cards/" + encodeURIComponent(x.note_id) }, "card")),
+    faceLine(x.faces),
+    x.answer ? h("div", { class: "small muted" }, "You: ", h("span", { lang: isJaText(x.answer) ? "ja" : null }, x.answer)) : null,
+    h("div", { class: "teacher" }, h("div", { class: "pre", lang: isJaText(x.feedback) ? "ja" : null }, x.feedback))));
+  const pendItems = (pend.items || []).map((x) => h("div", { class: "feed-item" },
+    h("div", { class: "rv-meta" }, h("span", null, relTime(x.answered_at)), h("span", null, x.deck),
+      h("a", { style: "margin-left:auto", href: "#/cards/" + encodeURIComponent(x.note_id) }, "card")),
+    faceLine({ ...x.faces, type: x.type }, x),
+    h("div", { class: "small" }, "You: ", h("span", { lang: isJaText(x.answer) ? "ja" : null }, x.answer || "(blank)"))));
+  main.replaceChildren(
+    h("h2", { style: "margin-top:4px" }, "From your teacher"),
+    fbItems.length ? h("div", { class: "panel" }, fbItems) : h("p", { class: "muted small" }, "No feedback yet."),
+    h("h2", null, `Waiting for grading (${pend.pending ?? 0})`),
+    pendItems.length ? h("div", { class: "panel" }, pendItems)
+      : h("p", { class: "muted small" }, "Nothing waiting. Use “Grade later” on a card to send a free answer to your teacher."));
+  const unseen = (fb.items || []).filter((x) => !x.seen).map((x) => x.review_id);
+  if (unseen.length) api("/api/feedback/seen", "POST", { review_ids: unseen }).then(() => { R.unseen = Math.max(0, R.unseen - unseen.length); }).catch(() => {});
+}
 
 // ---------- Cards ----------
 const C = { query: "", type: "", tag: "" };
@@ -545,8 +703,8 @@ function chip(card) {
 
 function noteRow(n) {
   const line = n.type === "basic"
-    ? h("div", { class: "line col" }, h("div", { lang: langFor("front", n.front) }, n.front || ""),
-        h("div", { class: "mean", lang: langFor("back", n.back) }, "→ " + (n.back || "")))
+    ? h("div", { class: "line col" }, h("div", { lang: langFor("front", n.front) }, plain(n.front)),
+        h("div", { class: "mean", lang: langFor("back", n.back) }, "→ " + plain(n.back)))
     : h("div", { class: "line" }, n.kanji ? h("span", { class: "k", lang: "ja" }, n.kanji) : null,
         h("span", { lang: "ja", class: n.kanji ? null : "k" }, n.kana || ""), h("span", { class: "mean" }, n.meaning || ""));
   return h("a", { class: "row", href: "#/cards/" + encodeURIComponent(n.note_id) }, line,
@@ -626,6 +784,8 @@ function drawDetail(note) {
     try { const upd = await api("/api/notes/" + encodeURIComponent(note.note_id), "PATCH", body); tagsCache = null; toast("Saved", false); drawDetail({ ...note, ...upd, history: note.history }); }
     catch { saveBtn.disabled = false; }
   } }, faceInputs, inp("notes", "Notes", { area: true, wide: true }),
+    inp("trap", "Trap (shown after the answer)", { wide: true }),
+    h("p", { class: "wide muted small", style: "margin:0" }, "Furigana: write {今日|きょう} in front, back, notes or trap."),
     h("label", null, "Tags (comma-separated)", tagsIn), h("label", null, "Deck", deckSel),
     h("div", { class: "wide actions" }, saveBtn));
 
@@ -650,10 +810,13 @@ function drawDetail(note) {
       c.reps ?? 0, c.lapses ?? 0, c.stability_days != null ? fmtNum(c.stability_days) + "d" : "–", fmtPct(c.recall_now)]), [3, 4, 5, 6]);
   const hist = [...(note.history || [])].sort((a, b) => String(b.reviewed_at).localeCompare(String(a.reviewed_at)));
   const histT = hist.length
-    ? table(["When", "Direction", "Rating", "Source", "Answer"], hist.map((r) => [h("span", { title: fmtDate(r.reviewed_at) }, relTime(r.reviewed_at)),
-        dirShort(r.direction), typeof r.rating === "number" ? RATINGS[r.rating - 1] || r.rating : r.rating, r.source || "", h("span", { lang: isJaText(r.answer) ? "ja" : null }, r.answer || "")]))
+    ? table(["When", "Direction", "Rating", "Source", "Answer", "Teacher"], hist.map((r) => [h("span", { title: fmtDate(r.reviewed_at) }, relTime(r.reviewed_at)),
+        dirShort(r.direction), typeof r.rating === "number" ? RATINGS[r.rating - 1] || r.rating : r.rating, r.source || "", h("span", { lang: isJaText(r.answer) ? "ja" : null }, r.answer || ""),
+        h("span", { lang: isJaText(r.feedback) ? "ja" : null }, r.feedback || "")]))
     : h("p", { class: "muted small" }, "No reviews yet.");
 
+  const waiting = (note.waiting_for_grading || []).length
+    ? h("p", { class: "banner" }, `${note.waiting_for_grading.length} answer(s) waiting for your teacher`) : null;
   main.replaceChildren(
     h("div", { class: "actions", style: "justify-content:space-between;align-items:center" },
       h("a", { href: "#/cards" }, "← Cards"),
@@ -661,6 +824,7 @@ function drawDetail(note) {
         if (!confirm("Delete this note and all its cards and history?")) return;
         try { await api("/api/notes/" + encodeURIComponent(note.note_id), "DELETE"); toast("Deleted", false); location.hash = "#/cards"; } catch {}
       } }, "Delete")),
+    waiting,
     h("h2", null, isWord ? "Word" : "Basic note"), form,
     h("h2", null, "Directions"), dirs,
     h("h2", null, "Schedule"), sched,

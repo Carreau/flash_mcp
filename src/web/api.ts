@@ -89,7 +89,7 @@ export async function handleApi(request: Request, env: Env, user: { userId: stri
       if (m === "GET") return json(await store.noteHistory(id));
       if (m === "PATCH") {
         const b = await body<Record<string, unknown>>(request);
-        const allowed = ["deck", "kanji", "kana", "meaning", "front", "back", "notes", "tags"];
+        const allowed = ["deck", "kanji", "kana", "meaning", "front", "back", "notes", "trap", "tags"];
         const update = Object.fromEntries(Object.entries(b).filter(([k]) => allowed.includes(k)));
         // The web form edits the full tag list, so replace rather than merge.
         return json(await store.updateNote(id, { ...update, replace_tags: true } as Parameters<Store["updateNote"]>[1]));
@@ -104,6 +104,7 @@ export async function handleApi(request: Request, env: Env, user: { userId: stri
           limit: num(q.get("limit")),
           new_limit: num(q.get("new_limit")),
           include_new: bool(q.get("include_new")),
+          ask_mode: ["grouped", "same_script", "single"].includes(q.get("ask_mode") ?? "") ? q.get("ask_mode") : undefined,
           // Practice ahead of schedule (cards not due yet).
           include_not_due: bool(q.get("include_not_due")),
         } as Parameters<Store["getDue"]>[0]),
@@ -118,6 +119,20 @@ export async function handleApi(request: Request, env: Env, user: { userId: stri
       if (!Array.isArray(b.reviews)) throw new UserError("reviews must be a list");
       return json(await store.rate(b.reviews.map((r) => ({ ...r, source: "ui" as const }))));
     }
+    if (m === "POST" && path === "/grade-later") {
+      const b = await body<{ answers: { card_id: string; answer?: string }[] }>(request);
+      if (!Array.isArray(b.answers)) throw new UserError("answers must be a list");
+      // Time is the server's: the learner answers now.
+      return json(await store.gradeLater(b.answers.map((a) => ({ card_id: String(a.card_id), answer: a.answer == null ? null : String(a.answer) }))));
+    }
+    if (m === "GET" && path === "/pending") return json(await store.pendingGrading({ deck: str(q.get("deck")), limit: num(q.get("limit")) }));
+    if (m === "GET" && path === "/feedback") return json(await store.feedbackInbox({ unseen_only: bool(q.get("unseen")), limit: num(q.get("limit")) }));
+    if (m === "POST" && path === "/feedback/seen") {
+      const b = await body<{ review_ids: string[] }>(request);
+      return json(await store.markFeedbackSeen(b.review_ids));
+    }
+    if (m === "GET" && path === "/settings") return json(await store.getSettings());
+    if (m === "PUT" && path === "/settings") return json(await store.updateSettings(await body(request)));
     if (m === "GET" && path === "/stats") return json(await store.stats({ deck: str(q.get("deck")), days: num(q.get("days")) }));
     return err("Not found", 404);
   } catch (e) {
