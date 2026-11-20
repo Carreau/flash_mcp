@@ -181,3 +181,12 @@ describe("IME answers and chunking", () => {
     expect(chunks(big).map((c) => c.length)).toEqual([2, 2, 2, 2, 2]);
   });
 });
+
+describe("multi-answer meanings", () => {
+  it("accepts the whole meaning and each part", () => {
+    const shizuka = { type: "word" as const, kanji: "静か", kana: "しずか", meaning: "quiet, calm" };
+    expect(acceptedAnswers(shizuka, "meaning", "kanji")).toEqual(["quiet, calm", "quiet", "calm"]);
+    const taberu = { type: "word" as const, kanji: "食べる", kana: "たべる", meaning: "(to) eat; consume", extra: { alt_meanings: ["dine"] } };
+    expect(acceptedAnswers(taberu, "meaning", "kanji")).toEqual(["(to) eat; consume", "(to) eat", "consume", "eat; consume", "eat", "dine"]);
+  });
+});

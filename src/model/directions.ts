@@ -127,8 +127,28 @@ export function acceptedAnswers(
   } else if (askFace === "kanji") {
     push(extra.alt_kanji);
   } else if (askFace === "meaning") {
-    push(extra.alt_meanings);
+    // "quiet, calm" -> also "quiet" and "calm"; "(to) eat" -> also "eat".
+    for (const m of [n.meaning, ...(Array.isArray(extra.alt_meanings) ? extra.alt_meanings : [extra.alt_meanings])]) {
+      if (typeof m !== "string") continue;
+      push(m.trim());
+      push(meaningParts(m));
+    }
   }
+  return out;
+}
+
+/** Parts of a multi-answer meaning, split on , and ; (each also without parentheticals). */
+export function meaningParts(m: string): string[] {
+  const out: string[] = [];
+  const add = (v: string) => {
+    const t = v.replace(/\s+/g, " ").trim();
+    if (t && !out.includes(t)) out.push(t);
+  };
+  const strip = (v: string) => v.replace(/\([^)]*\)|（[^）]*）/g, " ");
+  const parts = m.split(/[,;、；]/);
+  if (parts.length > 1) parts.forEach(add);
+  add(strip(m));
+  if (parts.length > 1) parts.forEach((p) => add(strip(p)));
   return out;
 }
 

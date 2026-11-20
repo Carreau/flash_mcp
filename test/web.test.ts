@@ -71,6 +71,16 @@ describe("web ui", () => {
     expect(src.results.map((r) => r.source)).toEqual(["ui"]);
   });
 
+  it("an unverified (IME kanji) answer is stored as verified: false", async () => {
+    const notes = (await (await api("/notes?query=" + encodeURIComponent("犬"))).json()) as any[];
+    const card = notes[0].cards.find((c: any) => c.direction === "kanji>kana").card_id;
+    const checked = (await (await api("/check", { method: "POST", body: JSON.stringify({ answers: [{ card_id: card, answer: "犬" }] }) })).json()) as any[];
+    expect(checked[0]).toMatchObject({ correct: true, verified: false });
+    await api("/rate", { method: "POST", body: JSON.stringify({ reviews: [{ card_id: card, rating: "good", answer: "犬", verified: false }] }) });
+    const row = await env.DB.prepare(`SELECT verified FROM review_log WHERE card_id = ? ORDER BY reviewed_at DESC, rowid DESC LIMIT 1`).bind(card).first<{ verified: number }>();
+    expect(row!.verified).toBe(0);
+  });
+
   it("browse and edit notes, tags", async () => {
     const notes = (await (await api("/notes?query=" + encodeURIComponent("犬"))).json()) as any[];
     expect(notes).toHaveLength(1);
@@ -81,7 +91,7 @@ describe("web ui", () => {
     const tags = (await (await api("/tags")).json()) as any[];
     expect(tags).toEqual([{ tag: "animals", notes: 1 }]);
     const detail = (await (await api(`/notes/${id}`)).json()) as any;
-    expect(detail.history.length).toBe(2);
+    expect(detail.history.length).toBe(3);
   });
 
   it("requires the CSRF header on writes and scopes to the user", async () => {

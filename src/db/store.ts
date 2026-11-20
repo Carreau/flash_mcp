@@ -32,11 +32,22 @@ export type OnConflict = "skip" | "update";
 
 export class UserError extends Error {}
 
+/**
+ * HAVING clause for "hardest notes" (grouped by n.id, cards c): only notes that are
+ * actually struggling, so the list may be short or empty. Takes one positional
+ * parameter (the window start) for the again/hard check.
+ */
+const STRUGGLING = `(SUM(c.lapses) > 0
+  OR SUM(c.reps >= 2 AND c.stability < 1) > 0
+  OR EXISTS (SELECT 1 FROM review_log hr JOIN cards hc ON hc.id = hr.card_id
+             WHERE hc.note_id = n.id AND hr.rating <= 2 AND hr.reviewed_at >= ?))`;
+
 /** Max characters for one text field (meaning, notes, trap, front, back...). */
 export const FIELD_MAX = 2000;
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
+const DEFAULT_SIBLING_GAP = 6 * HOUR;
 
 interface NoteRow {
   id: string;
@@ -118,6 +129,10 @@ export interface ReviewInput {
   source?: ReviewSource;
   answer?: string | null;
   session_id?: string | null;
+  /** false: correct but unverifiable (e.g. IME produced the kanji). Default true. */
+  verified?: boolean;
+  /** true: volunteered answer for a card that wasn't asked; kept in history, schedule unchanged. */
+  early?: boolean;
 }
 
 /** A session_end review: by card_id, or by content (word kanji?/kana, basic front). */
@@ -137,6 +152,8 @@ export interface SessionReviewInput {
   notes?: string | null;
   trap?: string | null;
   tags?: string[];
+  verified?: boolean;
+  early?: boolean;
 }
 
 export interface BulkRow {
@@ -952,7 +969,7 @@ export class Store {
     include_not_due?: boolean;
   }) {
     const now = this.clock();
-    const gap = (opts.sibling_gap_hours ?? 6) * HOUR;
+    const gap = opts.sibling_gap_hours != null ? opts.sibling_gap_hours * HOUR : DEFAULT_SIBLING_GAP;
     const mode = opts.ask_mode ?? "grouped";
     const ahead = !!opts.include_not_due;
     const where = ["c.user_id = ?", "c.suspended = 0"];
@@ -969,18 +986,19 @@ export class Store {
     // Hold a card back if a sibling was reviewed recently *and after this card's
     // own last review*: siblings rated together with it (same prompt) don't
     // block its short-term relearning steps.
-    if (!ahead) {
-      where.push(`NOT EXISTS (
-        SELECT 1 FROM cards s JOIN review_log r ON r.card_id = s.id
-        WHERE s.note_id = c.note_id AND s.id != c.id AND r.reviewed_at > ?
-          AND r.reviewed_at > COALESCE(c.last_review, -1))`);
-      vals.push(now - gap);
-    }
+    // held_since: latest sibling review that holds this card back (computed, not filtered,
+    // so held-back cards can be reported and the counts reconcile). The bound is our own
+    // integer, inlined to keep positional parameters in WHERE order.
+    const heldSince = ahead
+      ? "NULL"
+      : `(SELECT MAX(r.reviewed_at) FROM cards s JOIN review_log r ON r.card_id = s.id
+          WHERE s.note_id = c.note_id AND s.id != c.id AND r.reviewed_at > ${Math.floor(now - gap)}
+            AND r.reviewed_at > COALESCE(c.last_review, -1))`;
     // Overdue reviews first (most overdue first), then new cards in creation order,
     // then (practice ahead only) not-yet-due cards by due date.
-    const { results } = await this.db
+    const { results: rows } = await this.db
       .prepare(
-        `SELECT c.id AS card_id, c.direction, c.state, c.due, c.note_id,
+        `SELECT c.id AS card_id, c.direction, c.state, c.due, c.note_id, ${heldSince} AS held_since,
                 n.type, n.kanji, n.kana, n.meaning, n.front, n.back, n.notes, n.trap, n.extra, d.name AS deck_name
          FROM cards c JOIN notes n ON n.id = c.note_id JOIN decks d ON d.id = n.deck_id
          WHERE ${where.join(" AND ")}
@@ -991,8 +1009,10 @@ export class Store {
       .all<{
         card_id: string; direction: Direction; state: number; due: number; note_id: string; type: NoteType;
         kanji: string | null; kana: string | null; meaning: string | null; front: string | null; back: string | null;
-        notes: string | null; trap: string | null; extra: string | null; deck_name: string;
+        notes: string | null; trap: string | null; extra: string | null; deck_name: string; held_since: number | null;
       }>();
+    const results = rows.filter((r) => r.held_since == null);
+    const held = rows.filter((r) => r.held_since != null);
 
     // Named decks that don't exist are reported (an all-unknown list returns nothing, not everything).
     let unknownDecks: string[] = [];
@@ -1038,11 +1058,26 @@ export class Store {
       });
     }
     // Counts use the same filters; new cards are "available", not "due".
+    // due_review_cards (askable now) + held_back.due_review_cards = all due reviews (session_start's due_reviews).
+    const returnedCards = items.reduce((a, i) => a + i.prompts.reduce((b, p) => b + p.ask.length, 0), 0);
     return {
       now: iso(now),
       ask_mode: mode,
       ...(unknownDecks.length ? { unknown_decks: unknownDecks } : {}),
       due_review_cards: results.filter((r) => r.state !== 0 && r.due <= now).length,
+      returned_cards: returnedCards,
+      held_back: {
+        due_review_cards: held.filter((r) => r.state !== 0).length,
+        new_cards: held.filter((r) => r.state === 0).length,
+        cards: held.slice(0, 100).map((r) => ({
+          card_id: r.card_id,
+          note_id: r.note_id,
+          direction: r.direction,
+          ...faceFields(r),
+          is_new: r.state === 0,
+          until: iso(r.held_since! + gap),
+        })),
+      },
       ...(ahead ? { not_due_cards: results.filter((r) => r.state !== 0 && r.due > now).length } : {}),
       new_cards_available: results.filter((r) => r.state === 0).length,
       notes_returned: items.length,
@@ -1092,6 +1127,8 @@ export class Store {
         source: p.r.source ?? "chat",
         answer: p.r.answer ?? null,
         session_id: p.r.session_id ?? null,
+        verified: p.r.verified,
+        early: p.r.early,
       })),
     );
     await this.commit(w);
@@ -1107,6 +1144,8 @@ export class Store {
         state: STATE_NAMES[state.state],
         next_due: iso(state.due),
         interval_days: Math.round(((state.due - now) / DAY) * 10) / 10,
+        ...(r.verified === false ? { verified: false } : {}),
+        ...(r.early ? { early: true, schedule_changed: false } : {}),
       };
     });
   }
@@ -1121,16 +1160,24 @@ export class Store {
    */
   private async planRatings(
     w: Writes,
-    entries: { card: CardRow; rating: number; at: number; source: ReviewSource; answer: string | null; session_id: string | null }[],
+    entries: {
+      card: CardRow; rating: number; at: number; source: ReviewSource; answer: string | null; session_id: string | null;
+      /** false: judged correct but unverifiable (IME kanji). Scheduled like any review. */
+      verified?: boolean;
+      /** true: volunteered answer to a card that wasn't asked; logged, schedule untouched. */
+      early?: boolean;
+    }[],
   ) {
     const perCard = new Map<string, typeof entries>();
     for (const e of entries) perCard.set(e.card.id, [...(perCard.get(e.card.id) ?? []), e]);
     for (const list of perCard.values()) list.sort((x, y) => x.at - y.at);
+    const scheduling = (list: typeof entries) => list.filter((p) => !p.early);
 
     const needReplay = [...perCard]
       .filter(([, list]) => {
+        const sched = scheduling(list);
         const last = list[0]!.card.last_review;
-        return last != null && list[0]!.at < last;
+        return sched.length > 0 && last != null && sched[0]!.at < last;
       })
       .map(([id]) => id);
     const history = new Map<string, { rating: number; reviewed_at: number }[]>();
@@ -1138,7 +1185,7 @@ export class Store {
       const { results: log } = await this.db
         .prepare(
           `SELECT card_id, rating, reviewed_at FROM review_log
-           WHERE user_id = ? AND card_id IN (SELECT value FROM json_each(?)) ORDER BY reviewed_at, rowid`,
+           WHERE user_id = ? AND affects_schedule = 1 AND card_id IN (SELECT value FROM json_each(?)) ORDER BY reviewed_at, rowid`,
         )
         .bind(this.userId, JSON.stringify(needReplay))
         .all<{ card_id: string; rating: number; reviewed_at: number }>();
@@ -1148,19 +1195,24 @@ export class Store {
     const final = new Map<string, { state: SchedState; replayed: boolean }>();
     for (const [id, list] of perCard) {
       const card = list[0]!.card;
+      const sched = scheduling(list);
       const replayed = needReplay.includes(id);
       let state: SchedState;
       if (replayed) {
-        state = replay(card.created_at, [...(history.get(id) ?? []), ...list.map((p) => ({ rating: p.rating, reviewed_at: p.at }))]);
+        state = replay(card.created_at, [...(history.get(id) ?? []), ...sched.map((p) => ({ rating: p.rating, reviewed_at: p.at }))]);
       } else {
         state = card;
-        for (const p of list) state = applyReview(state, p.rating, p.at);
+        for (const p of sched) state = applyReview(state, p.rating, p.at);
       }
       final.set(id, { state, replayed });
       for (const p of list) {
-        w.logs.push({ id: this.id(), card_id: id, rating: p.rating, reviewed_at: p.at, source: p.source, answer: p.answer, session_id: p.session_id });
+        w.logs.push({
+          id: this.id(), card_id: id, rating: p.rating, reviewed_at: p.at, source: p.source, answer: p.answer, session_id: p.session_id,
+          verified: p.verified === false ? 0 : 1,
+          affects_schedule: p.early ? 0 : 1,
+        });
       }
-      w.states.push({ id, ...pickState(state) });
+      if (sched.length) w.states.push({ id, ...pickState(state) });
     }
     return final;
   }
@@ -1169,14 +1221,20 @@ export class Store {
     const note = await this.getNote(noteId);
     const { results } = await this.db
       .prepare(
-        `SELECT c.direction, r.rating, r.reviewed_at, r.source, r.answer FROM review_log r
-         JOIN cards c ON c.id = r.card_id WHERE c.note_id = ? AND r.user_id = ? ORDER BY r.reviewed_at`,
+        `SELECT c.direction, r.rating, r.reviewed_at, r.source, r.answer, r.verified, r.affects_schedule FROM review_log r
+         JOIN cards c ON c.id = r.card_id WHERE c.note_id = ? AND r.user_id = ? ORDER BY r.reviewed_at, r.rowid`,
       )
       .bind(noteId, this.userId)
-      .all<{ direction: Direction; rating: number; reviewed_at: number; source: string; answer: string | null }>();
+      .all<{ direction: Direction; rating: number; reviewed_at: number; source: string; answer: string | null; verified: number; affects_schedule: number }>();
     return {
       ...note,
-      history: results.map((r) => ({ ...r, rating: RATING_NAMES[r.rating], reviewed_at: iso(r.reviewed_at) })),
+      history: results.map(({ verified, affects_schedule, ...r }) => ({
+        ...r,
+        rating: RATING_NAMES[r.rating],
+        reviewed_at: iso(r.reviewed_at),
+        verified: !!verified,
+        early: !affects_schedule,
+      })),
     };
   }
 
@@ -1232,13 +1290,17 @@ export class Store {
           `SELECT d.name AS deck, c.direction,
              SUM(c.state != 0 AND c.due <= ?1) AS due_reviews,
              SUM(c.state = 0) AS new_available,
-             SUM(c.state IN (1, 3)) AS learning
+             SUM(c.state IN (1, 3)) AS learning,
+             SUM(c.state != 0 AND c.due <= ?1 AND EXISTS (
+               SELECT 1 FROM cards s JOIN review_log r ON r.card_id = s.id
+               WHERE s.note_id = c.note_id AND s.id != c.id AND r.reviewed_at > ?4
+                 AND r.reviewed_at > COALESCE(c.last_review, -1))) AS held_back
            FROM cards c ${join}
            WHERE c.user_id = ?2 AND c.suspended = 0 AND ${inDecks.replace("?", "?3")}
            GROUP BY d.id, c.direction ORDER BY c.direction`,
         )
-        .bind(now, this.userId, deckIds)
-        .all<{ deck: string; direction: Direction; due_reviews: number; new_available: number; learning: number }>(),
+        .bind(now, this.userId, deckIds, now - DEFAULT_SIBLING_GAP)
+        .all<{ deck: string; direction: Direction; due_reviews: number; new_available: number; learning: number; held_back: number }>(),
       this.db
         .prepare(
           `SELECT d.name AS deck, n.id AS note_id, n.type, n.kanji, n.kana, n.meaning, n.front, n.trap,
@@ -1260,10 +1322,10 @@ export class Store {
                ROW_NUMBER() OVER (PARTITION BY d.id ORDER BY SUM(c.lapses) DESC, MIN(c.stability) ASC) AS rk
              FROM cards c ${join}
              WHERE c.user_id = ?1 AND c.suspended = 0 AND c.state != 0 AND ${inDecks.replace("?", "?2")}
-             GROUP BY n.id
+             GROUP BY n.id HAVING ${STRUGGLING.replace("?", "?3")}
            ) WHERE rk <= 15 ORDER BY deck, rk`,
         )
-        .bind(this.userId, deckIds)
+        .bind(this.userId, deckIds, since)
         .all<Record<string, unknown> & { deck: string; rk: number }>(),
       this.db
         .prepare(
@@ -1276,12 +1338,20 @@ export class Store {
 
     const perDeck = decks.map((d) => {
       const dirs = counts.results.filter((c) => c.deck === d.name).map(({ deck: _, ...c }) => c);
-      const sum = (k: "due_reviews" | "new_available" | "learning") => dirs.reduce((a, c) => a + (c[k] ?? 0), 0);
+      const sum = (k: "due_reviews" | "new_available" | "learning" | "held_back") => dirs.reduce((a, c) => a + (c[k] ?? 0), 0);
       return {
         deck: d.name,
         description: d.description,
         default_directions: d.default_directions ?? [...DEFAULT_WORD_DIRECTIONS],
-        due: { due_reviews: sum("due_reviews"), new_available: sum("new_available"), learning: sum("learning"), by_direction: dirs },
+        // due_reviews = available_now + held_back (held back by the sibling gap after a sibling was just reviewed).
+        due: {
+          due_reviews: sum("due_reviews"),
+          available_now: sum("due_reviews") - sum("held_back"),
+          held_back: sum("held_back"),
+          new_available: sum("new_available"),
+          learning: sum("learning"),
+          by_direction: dirs,
+        },
         struggled_since: struggled.results
           .filter((s) => s.deck === d.name)
           .slice(0, 40)
@@ -1573,6 +1643,8 @@ export class Store {
         source: p.r.source ?? defaultSource,
         answer: p.r.answer ?? null,
         session_id: sessionId,
+        verified: p.r.verified,
+        early: p.r.early,
       })),
     );
 
@@ -1621,6 +1693,8 @@ export class Store {
           ...(noteCreated ? { note_created: true } : {}),
           ...(cardCreated && !noteCreated ? { card_created: true } : {}),
           ...(card.suspended ? { suspended: true } : {}),
+          ...(p.r.verified === false ? { verified: false } : {}),
+          ...(p.r.early ? { early: true, schedule_changed: false } : {}),
           // The entry named another deck than the note's: rated anyway (deck only narrows).
           ...(deckMismatch ? { deck_mismatch: { requested: p.r.deck, actual: note.deck_name } } : {}),
         };
@@ -1674,26 +1748,33 @@ export class Store {
       .bind(now, this.userId, ...deckVal)
       .all<{ direction: string; avg_stability_days: number | null }>();
 
-    // Retention = share of reviews in the window not rated "again", on cards past their first review.
+    // Retention = share of scheduling reviews in the window not rated "again".
+    // Unverified (IME) and early (not asked, no schedule effect) reviews are counted separately.
     const retention = await this.db
       .prepare(
-        `SELECT c.direction, COUNT(*) AS reviews, AVG(r.rating > 1) AS retention
+        `SELECT c.direction,
+           SUM(r.affects_schedule = 1) AS reviews,
+           AVG(CASE WHEN r.affects_schedule = 1 THEN r.rating > 1 END) AS retention,
+           SUM(r.affects_schedule = 1 AND r.verified = 0) AS reviews_unverified,
+           AVG(CASE WHEN r.affects_schedule = 1 AND r.verified = 1 THEN r.rating > 1 END) AS retention_verified,
+           SUM(r.affects_schedule = 0) AS reviews_early
          FROM review_log r JOIN cards c ON c.id = r.card_id ${deckJoin}
          WHERE r.user_id = ? AND r.reviewed_at >= ? ${deckWhere}
          GROUP BY c.direction`,
       )
       .bind(this.userId, since, ...deckVal)
-      .all<{ direction: string; reviews: number; retention: number }>();
+      .all<{ direction: string; reviews: number; retention: number | null; reviews_unverified: number; retention_verified: number | null; reviews_early: number }>();
 
     const hardest = await this.db
       .prepare(
         `SELECT n.id AS note_id, n.kanji, n.kana, n.meaning, n.front, SUM(c.lapses) AS lapses,
+           ROUND(MIN(CASE WHEN c.state != 0 THEN c.stability END), 2) AS min_stability_days,
            GROUP_CONCAT(CASE WHEN c.lapses > 0 THEN c.direction || ':' || c.lapses END) AS by_direction
          FROM cards c ${deckJoin}
          WHERE c.user_id = ? AND c.suspended = 0 ${deckWhere}
-         GROUP BY n.id HAVING SUM(c.lapses) > 0 ORDER BY lapses DESC LIMIT 15`,
+         GROUP BY n.id HAVING ${STRUGGLING} ORDER BY lapses DESC, MIN(CASE WHEN c.state != 0 THEN c.stability END) LIMIT 15`,
       )
-      .bind(this.userId, ...deckVal)
+      .bind(this.userId, ...deckVal, since)
       .all();
 
     const bySource = await this.db
@@ -1713,6 +1794,9 @@ export class Store {
         avg_stability_days: round2(d.avg_stability_days),
         reviews_in_window: ret.get(d.direction)?.reviews ?? 0,
         retention_in_window: round2(ret.get(d.direction)?.retention ?? null),
+        reviews_unverified_in_window: ret.get(d.direction)?.reviews_unverified ?? 0,
+        retention_verified_in_window: round2(ret.get(d.direction)?.retention_verified ?? null),
+        reviews_early_in_window: ret.get(d.direction)?.reviews_early ?? 0,
       })),
       reviews_by_source: bySource.results,
       hardest_notes: hardest.results,

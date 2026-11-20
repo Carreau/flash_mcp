@@ -55,6 +55,10 @@ export interface LogInsert {
   source: string;
   answer: string | null;
   session_id: string | null;
+  /** 0 when the answer was judged correct but couldn't be checked (IME kanji). */
+  verified: number;
+  /** 0 for early (volunteered, not asked) answers: history only, no scheduling. */
+  affects_schedule: number;
 }
 
 /** Split rows into chunks of at most CHUNK rows and ~MAX_PARAM_BYTES of JSON. */
@@ -237,10 +241,10 @@ export class Writes {
       s.push(
         db
           .prepare(
-            `INSERT INTO review_log (id, user_id, card_id, rating, reviewed_at, source, answer, session_id, created_at)
+            `INSERT INTO review_log (id, user_id, card_id, rating, reviewed_at, source, answer, session_id, verified, affects_schedule, created_at)
              SELECT json_extract(value, '$.id'), ?2, json_extract(value, '$.card_id'), json_extract(value, '$.rating'),
                json_extract(value, '$.reviewed_at'), json_extract(value, '$.source'), json_extract(value, '$.answer'),
-               json_extract(value, '$.session_id'), ?3
+               json_extract(value, '$.session_id'), json_extract(value, '$.verified'), json_extract(value, '$.affects_schedule'), ?3
              FROM json_each(?1) ORDER BY key`,
           )
           .bind(JSON.stringify(c), u, this.now),

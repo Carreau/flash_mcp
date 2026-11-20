@@ -40,6 +40,26 @@ function tzSchema() {
   return z.string().optional().describe("IANA time zone for the *_local times in the output and for reviewed_at/since given without offset (default: the learner's zone)");
 }
 
+/**
+ * Bump whenever the tool set or a tool's schema changes (date + counter). claude.ai caches
+ * tools/list until the connector is reconnected, and this stateless server can't push
+ * tools/list_changed, so session_start reports it and the instructions say what to do.
+ */
+export const SERVER_VERSION = "2026-11-20.3";
+
+const reviewFlags = {
+  verified: z
+    .boolean()
+    .optional()
+    .describe(
+      "false = judged correct but the reading couldn't be checked (the answer was the shown kanji, or another kanji with the same reading from IME, e.g. 見ず for 水). Schedules like a normal review. Default true",
+    ),
+  early: z
+    .boolean()
+    .optional()
+    .describe("true = the learner volunteered this answer for a card that wasn't asked/due: kept in history, schedule NOT changed"),
+};
+
 const DEFAULT_TZ = (() => {
   const t = (env as unknown as { DEFAULT_TZ?: string }).DEFAULT_TZ;
   return t && isValidTz(t) ? t : FALLBACK_TZ;
@@ -67,8 +87,13 @@ Prompts: get_due ask_mode "grouped" (default) asks all faces at once; "same_scri
 After the answer (never with the prompt): show the item's after_answer.trap and after_answer.notes (the trap is the specific pitfall to remember).
 Kana faces: only the reading matters. Answers in romaji (neko) or kanji produced by IME completion are acceptable: rate them as correct and mention it briefly. Each ask entry lists "accept"; "accept_with_warning" (e.g. the shown kanji itself, for kanji>kana, which the IME produces from the typed reading) is also correct, but the reading couldn't be verified: rate it as correct and say so in one short sentence.
 Rate honestly: again = not recalled, hard = recalled with effort, good = recalled, easy = instant.
+Unverifiable readings: when a kanji>kana answer is the shown kanji itself (accept_with_warning) or a different kanji with the same reading produced by IME (e.g. 見ず for 水), count it as correct but send verified: false with the rating.
+Volunteered answers: when the learner also answers faces whose cards weren't asked (or aren't due), either leave them out or send them with early: true (preferred: kept in history, schedule unchanged). Never rate them as normal reviews.
+Counts: due_reviews = available now + held_back (held back for a few hours after a sibling direction was reviewed; held_back lists them with "until"). Don't tell the learner cards are missing when they are only held back.
 
 Times: every timestamp is ISO UTC plus a "<field>_local" version in the learner's time zone (tz parameter, default ${DEFAULT_TZ}). reviewed_at accepts ISO with offset (2026-11-20T15:04+01:00) or local "YYYY-MM-DD HH:mm" read in tz. Past times are fine (lesson ratings entered later replay the history).
+
+Versions: session_start returns server_version. If it differs from the one seen earlier in this conversation, or a tool these instructions mention seems missing, ask the learner to reconnect the connector (claude.ai caches the tool list until reconnect).
 
 Editing: add_words with on_conflict "update" upserts; update_note / update_notes merge tags (replace_tags to replace, remove_tags to remove); bulk_import for large lists; lookup to check which words already exist. Only delete notes when the learner explicitly asks.`;
 
@@ -125,7 +150,7 @@ const noteEdit = {
 };
 
 export function buildServer(store: Store): McpServer {
-  const server = new McpServer({ name: "flash-mcp", version: "0.2.0" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "flash-mcp", version: SERVER_VERSION }, { instructions: INSTRUCTIONS });
   const ro = { readOnlyHint: true, openWorldHint: false };
   const rw = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 
@@ -135,7 +160,9 @@ export function buildServer(store: Store): McpServer {
       description:
         "Open a study session (call once at the start of every lesson/quiz). Returns session_id (pass it to session_end), and per deck: due counts per direction " +
         "(due reviews, new available, learning), cards rated again/hard since `since` (default: end of the last session, else 7 days ago) with their latest rating, " +
-        "the hardest notes (most lapses / lowest stability, up to 15), reviews since grouped by source (chat/lesson/self/ui), and the first due prompts (like get_due).",
+        "the struggling notes (lapses, again/hard since `since`, or fragile after 2+ reviews; up to 15, often fewer), reviews since grouped by source (chat/lesson/self/ui), and the first due prompts (like get_due). " +
+        "Counts: decks[].due.due_reviews = available_now + held_back (cards held back for a few hours because a sibling direction was just reviewed). " +
+        "server_version: compare with earlier calls in this conversation (see instructions).",
       inputSchema: z.object({
         decks: z.array(short()).max(50).optional().describe("Deck names; all decks when omitted"),
         kind: z.enum(["text", "voice"]).optional().describe("voice: reviews in session_end default to source 'lesson'; text: 'chat'"),
@@ -147,7 +174,7 @@ export function buildServer(store: Store): McpServer {
       }),
       annotations: rw,
     },
-    wrap(async (a, tz) => store.sessionStart({ ...a, tz })),
+    wrap(async (a, tz) => ({ server_version: SERVER_VERSION, ...(await store.sessionStart({ ...a, tz })) })),
   );
 
   server.registerTool(
@@ -180,6 +207,7 @@ export function buildServer(store: Store): McpServer {
               notes: text().nullish().describe("Only used when the note is created"),
               trap,
               tags: tags().optional().describe("Only used when the note is created"),
+              ...reviewFlags,
             }),
           )
           .max(300)
@@ -410,7 +438,9 @@ export function buildServer(store: Store): McpServer {
         "By default only the prompts showing the best face are returned per note (with same_script/single there may be several: ask them back-to-back) and other directions are held back " +
         "for sibling_gap_hours after a sibling was reviewed, so answers don't leak. " +
         "after_answer {trap, notes}: show it only AFTER the learner answered, never with the prompt (the top-level `notes` is the same after-answer material). " +
-        "include_not_due: practice ahead of schedule (not-yet-due cards after the due ones); rating such cards counts as an early review.",
+        "include_not_due: practice ahead of schedule (not-yet-due cards after the due ones); rating such cards counts as an early review. " +
+        "Counts: due_review_cards = due reviews askable now (all of them, also those beyond limit); held_back lists due cards held back by the sibling gap (with `until`); " +
+        "due_review_cards + held_back.due_review_cards = all due reviews (session_start's due_reviews). returned_cards = cards in the returned prompts.",
       inputSchema: z.object({
         deck: short().optional(),
         decks: z.array(short()).max(50).optional().describe("Several decks"),
@@ -455,6 +485,7 @@ export function buildServer(store: Store): McpServer {
               source: source.optional().describe("Default 'chat'"),
               answer: text().nullish(),
               session_id: z.string().nullish().describe("study session id from session_start, if any"),
+              ...reviewFlags,
             }),
           )
           .min(1)

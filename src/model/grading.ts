@@ -59,6 +59,8 @@ export interface Verdict {
   close: boolean;
   /** Accepted, but typed in an unexpected way (romaji, IME kanji, Japanese keyboard left on). */
   warning?: string;
+  /** false when the answer was accepted but the reading itself wasn't seen (IME kanji). */
+  verified?: boolean;
 }
 
 const HAS_KANJI = /[\u3400-\u9fff\uf900-\ufaff]/;
@@ -91,7 +93,7 @@ function expandChoon(s: string): string {
  */
 export function checkAnswer(face: string, answer: string, accept: string[], shown?: string): Verdict {
   if (face === "kana" && shown && HAS_KANJI.test(answer) && normalizeJa(answer) === normalizeJa(shown)) {
-    return { correct: true, close: false, warning: WARN.sameAsPrompt };
+    return { correct: true, close: false, warning: WARN.sameAsPrompt, verified: false };
   }
   if (!answer.trim() || accept.length === 0) return { correct: false, close: false };
 
@@ -125,7 +127,7 @@ export function checkAnswer(face: string, answer: string, accept: string[], show
   const alts = [...new Set(forms.map(normalizeJa).filter(Boolean))];
   if (alts.includes(g)) {
     const viaIme = face === "kana" && HAS_KANJI.test(answer) && !alts.some((a) => a === g && !HAS_KANJI.test(a)) ;
-    return viaIme ? { correct: true, close: false, warning: WARN.ime } : { correct: true, close: false };
+    return viaIme ? { correct: true, close: false, warning: WARN.ime, verified: false } : { correct: true, close: false };
   }
   if ((face === "kana" || face === "back" || face === "front") && isRomaji(answer)) {
     const kanaAlts = alts.filter((a) => !HAS_KANJI.test(a)).map(expandChoon);

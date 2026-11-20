@@ -54,7 +54,8 @@ describe("grading", () => {
   });
 
   it("IME kanji for a kana answer is accepted with a warning; plain kana has none", () => {
-    expect(checkAnswer("kana", "猫", ["ねこ", "猫"])).toMatchObject({ correct: true, warning: expect.stringMatching(/kanji/) });
+    expect(checkAnswer("kana", "猫", ["ねこ", "猫"])).toMatchObject({ correct: true, verified: false, warning: expect.stringMatching(/kanji/) });
+    expect(checkAnswer("kana", "neko", ["ねこ"]).verified).toBeUndefined();
     expect(checkAnswer("kana", "ねこ", ["ねこ", "猫"]).warning).toBeUndefined();
   });
 
@@ -66,7 +67,7 @@ describe("grading", () => {
   });
 
   it("kanji>kana: the shown kanji typed back (IME completion) is accepted with a warning", () => {
-    expect(checkAnswer("kana", "犬", ["いぬ"], "犬")).toMatchObject({ correct: true, warning: expect.stringMatching(/reading can't be checked/) });
+    expect(checkAnswer("kana", "犬", ["いぬ"], "犬")).toMatchObject({ correct: true, verified: false, warning: expect.stringMatching(/reading can't be checked/) });
     expect(checkAnswer("kana", "猫", ["いぬ"], "犬").correct).toBe(false);
   });
 });

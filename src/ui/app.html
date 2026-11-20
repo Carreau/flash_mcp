@@ -501,9 +501,13 @@ async function doNext() {
   try {
     if (!R.practice || R.record) await api("/api/rate", "POST", { reviews: p.ask.map((a) => {
       const ans = (R.answers[a.card_id] || "").trim();
-      return ans && R.phase === "checked" && R.results
-        ? { card_id: a.card_id, rating: R.ratings[a.card_id], answer: ans }
-        : { card_id: a.card_id, rating: R.ratings[a.card_id] };
+      const review = { card_id: a.card_id, rating: R.ratings[a.card_id] };
+      if (ans && R.phase === "checked" && R.results) {
+        review.answer = ans;
+        // Accepted via IME kanji: the reading itself wasn't checked.
+        if (R.results[a.card_id]?.verified === false) review.verified = false;
+      }
+      return review;
     }) });
   } catch { if (gen === R.gen) { R.busy = false; drawReview(); } return; }
   if (R.queue[0] === item) R.queue.shift();

@@ -488,3 +488,92 @@ describe("review fixes", () => {
     expect(c.batchStatements).toBeLessThanOrEqual(12);
   });
 });
+
+describe("teacher feedback round 2", () => {
+  it("held_back makes due counts reconcile between session_start and get_due", async () => {
+    const [w] = await store.addWords("JP", [{ kanji: "犬", kana: "いぬ", meaning: "dog" }]);
+    const cards = (await store.getNote(w!.note_id)).cards;
+    await store.rate(cards.map((c) => ({ card_id: c.card_id, rating: "good" as const })));
+    now += 30 * DAY; // all 4 due
+    const p = (await store.getDue({})).items[0]!.prompts[0]!;
+    expect(p.show).toBe("kanji");
+    await store.rate(p.ask.map((a) => ({ card_id: a.card_id, rating: "good" as const })));
+    now += 60_000;
+    const due = await store.getDue({});
+    expect(due.items).toEqual([]);
+    expect(due.due_review_cards).toBe(0);
+    expect(due.held_back.due_review_cards).toBe(2);
+    expect(due.held_back.cards.map((c) => c.direction).sort()).toEqual(["kana>meaning", "meaning>kana"]);
+    expect(Date.parse(due.held_back.cards[0]!.until!)).toBe(now - 60_000 + 6 * HOUR);
+    const s = await store.sessionStart({});
+    expect(s.decks[0]!.due).toMatchObject({ due_reviews: 2, held_back: 2, available_now: 0 });
+    expect(s.decks[0]!.due.due_reviews).toBe(s.due!.due_review_cards + s.due!.held_back.due_review_cards);
+  });
+
+  it("hardest notes only lists struggling notes (may be empty)", async () => {
+    const [ok, bad] = await store.addWords("JP", [
+      { kanji: "犬", kana: "いぬ", meaning: "dog" },
+      { kanji: "猫", kana: "ねこ", meaning: "cat" },
+    ]);
+    const ids = async (id: string) => (await store.getNote(id)).cards.map((c) => c.card_id);
+    await store.rate((await ids(ok!.note_id)).map((card_id) => ({ card_id, rating: "easy" as const })));
+    expect((await store.stats({})).hardest_notes).toEqual([]);
+    expect((await store.sessionStart({ include_due: false })).decks[0]!.hardest_notes).toEqual([]);
+    await store.rate([{ card_id: (await ids(bad!.note_id))[0]!, rating: "hard" }]);
+    expect((await store.stats({})).hardest_notes.map((h) => (h as { kanji: string }).kanji)).toEqual(["猫"]);
+    expect((await store.sessionStart({ include_due: false, since: "2026-10-01" })).decks[0]!.hardest_notes.map((h) => (h as { kanji?: unknown }).kanji)).toEqual(["猫"]);
+  });
+
+  it("verified:false is scheduled normally but counted apart; early:true is history only and skipped by replay", async () => {
+    const [w] = await store.addWords("JP", [{ kanji: "水", kana: "みず", meaning: "water" }]);
+    const byDir = Object.fromEntries((await store.getNote(w!.note_id)).cards.map((c) => [c.direction, c.card_id]));
+    const kk = byDir["kanji>kana"]!;
+    const km = byDir["kanji>meaning"]!;
+    const before = (await store.getNote(w!.note_id)).cards.find((c) => c.card_id === km)!;
+    const r = await store.rate([
+      { card_id: kk, rating: "good", answer: "見ず", verified: false },
+      { card_id: km, rating: "again", answer: "water", early: true },
+    ]);
+    expect(r[0]).toMatchObject({ verified: false, state: "learning" });
+    expect(r[1]).toMatchObject({ early: true, schedule_changed: false, state: "new" });
+    const after = await store.getNote(w!.note_id);
+    expect(after.cards.find((c) => c.card_id === km)).toEqual(before);
+    const hist = await store.noteHistory(w!.note_id);
+    expect(hist.history.map((h) => [h.direction, h.verified, h.early])).toEqual([
+      ["kanji>kana", false, false],
+      ["kanji>meaning", true, true],
+    ]);
+    const kkStats = (await store.stats({})).by_direction.find((d) => d.direction === "kanji>kana")!;
+    expect(kkStats).toMatchObject({ reviews_in_window: 1, reviews_unverified_in_window: 1, retention_verified_in_window: null });
+    const kmStats = (await store.stats({})).by_direction.find((d) => d.direction === "kanji>meaning")!;
+    expect(kmStats).toMatchObject({ reviews_in_window: 0, reviews_early_in_window: 1 });
+
+    // Replay ignores early rows: same state as a twin without them.
+    now += 2 * DAY;
+    await store.rate([{ card_id: km, rating: "good" }]);
+    await store.rate([{ card_id: km, rating: "hard", reviewed_at: now - DAY }]); // backdated -> replay
+    const twin = await makeUser();
+    now -= 2 * DAY;
+    const [t] = await twin.addWords("JP", [{ kanji: "水", kana: "みず", meaning: "water" }]);
+    const tkm = (await twin.getNote(t!.note_id)).cards.find((c) => c.direction === "kanji>meaning")!.card_id;
+    now += 2 * DAY;
+    await twin.rate([{ card_id: tkm, rating: "hard", reviewed_at: now - DAY }, { card_id: tkm, rating: "good" }]);
+    const a = (await store.getNote(w!.note_id)).cards.find((c) => c.card_id === km)!;
+    const b = (await twin.getNote(t!.note_id)).cards.find((c) => c.card_id === tkm)!;
+    expect({ ...a, card_id: "" }).toEqual({ ...b, card_id: "" });
+
+    // session_end carries the same flags.
+    const s = await store.sessionStart({ include_due: false });
+    const end = await store.sessionEnd(s.session_id, {
+      reviews: [
+        { kanji: "水", kana: "みず", direction: "kana>meaning", rating: "good", early: true },
+        { kanji: "水", kana: "みず", direction: "meaning>kana", rating: "good", verified: false },
+      ],
+    });
+    expect(end.reviews.map((x) => [x.early ?? false, x.verified ?? true])).toEqual([
+      [true, true],
+      [false, false],
+    ]);
+    expect((await store.getNote(w!.note_id)).cards.find((c) => c.direction === "kana>meaning")!.reps).toBe(0);
+  });
+});
