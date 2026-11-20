@@ -164,8 +164,8 @@ describe("oauth + mcp end to end", () => {
     const list = await mcp("tools/list");
     expect(list.result.tools.map((t: { name: string }) => t.name).sort()).toEqual(
       [
-        "add_basic", "add_words", "bulk_import", "create_deck", "delete_note", "get_due", "list_decks", "lookup", "note_history",
-        "rate", "search_notes", "session_end", "session_start", "set_directions", "stats", "update_deck", "update_note", "update_notes",
+        "add_basic", "add_words", "bulk_import", "create_deck", "delete_note", "get_due", "get_pending_grading", "list_decks", "lookup", "note_history",
+        "rate", "search_notes", "session_end", "session_start", "set_directions", "set_schedule", "settings", "stats", "update_deck", "update_note", "update_notes",
       ],
     );
 

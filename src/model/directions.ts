@@ -1,3 +1,5 @@
+import { plainText, readingText } from "./furigana";
+
 // The Japanese "triangle": a word has up to three faces, and each ordered pair
 // of faces is a separate skill with its own schedule.
 
@@ -116,8 +118,22 @@ export function acceptedAnswers(
     if (Array.isArray(v)) v.forEach(push);
   };
   const n = note as unknown as Record<string, unknown>;
-  push(n[askFace]);
   const extra = note.extra ?? {};
+  // Furigana markup ({今日|きょう}) is compared without the markup; a kana answer may also be
+  // the reading of the whole text.
+  const pushText = (v: unknown) => {
+    if (Array.isArray(v)) return v.forEach(pushText);
+    if (typeof v !== "string") return;
+    push(plainText(v));
+    const r = readingText(v);
+    if (r && r !== plainText(v)) push(r);
+  };
+  if (askFace === "front" || askFace === "back") {
+    pushText(n[askFace]);
+    pushText(askFace === "back" ? extra.alt_backs : extra.alt_fronts);
+    return out;
+  }
+  push(n[askFace]);
   if (askFace === "kana") {
     push(extra.alt_kana);
     if (showFace !== "kanji") {

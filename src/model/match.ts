@@ -1,3 +1,5 @@
+import { plainText } from "./furigana";
+
 // Content addressing: find a note from what the teacher remembers of it
 // (kanji + kana, or kana alone, or a basic note's front) instead of a card id.
 
@@ -45,7 +47,7 @@ export class NoteIndex<N extends MatchNote> {
   }
 
   add(n: N) {
-    const [map, key] = n.type === "word" ? [this.byKana, normJa(n.kana)] : [this.byFront, normJa(n.front)];
+    const [map, key] = n.type === "word" ? [this.byKana, normJa(n.kana)] : [this.byFront, normJa(plainText(n.front ?? ""))];
     const list = map.get(key) ?? [];
     if (!list.some((x) => x.id === n.id)) list.push(n);
     map.set(key, list);
@@ -63,7 +65,8 @@ export class NoteIndex<N extends MatchNote> {
   }
 
   matchBasic(q: { front: string; deck?: string | null }): MatchResult<N> {
-    const all = this.byFront.get(normJa(q.front)) ?? [];
+    // Fronts compare without furigana markup ({今日|きょう} == 今日).
+    const all = this.byFront.get(normJa(plainText(q.front))) ?? [];
     return this.narrow(all, q.deck, (c) =>
       c.length === 1 ? { status: "found", note: c[0]! } : c.length > 1 ? { status: "ambiguous", candidates: c } : { status: "not_found", candidates: [] },
     );

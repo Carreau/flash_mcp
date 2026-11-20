@@ -21,9 +21,27 @@ const wordDirection = z.enum(WORD_DIRECTIONS);
 const rating = z.enum(["again", "hard", "good", "easy"]);
 const source = z.enum(["chat", "lesson", "self", "ui"]);
 const onConflict = z
-  .enum(["skip", "update"])
+  .enum(["skip", "update", "merge"])
   .optional()
-  .describe("When the word (same kanji+kana) already exists: skip (default) or update its meaning/notes/trap, merge extra and tags; the schedule is kept");
+  .describe(
+    "When the word already exists: skip (default; same kanji+kana); update (meaning/notes/trap set, extra and tags merged); " +
+      "merge (switch on this word's directions (given, else the deck's defaults) on the existing note, merge tags, set notes/trap only if empty; " +
+      "a word given with kana only also merges into the single existing note with that kana, e.g. りょうしん → 両親/りょうしん in another deck; several matches → status 'ambiguous' with candidates). " +
+      "The schedule is always kept.",
+  );
+const furiganaNote =
+  "Furigana: write {今日|きょう} in front/back/notes/trap/extra.example; {漢字} alone takes the reading of the single word note written 漢字 (else kept bare and listed in furigana_problems).";
+const scheduleSchema = z
+  .object({
+    state: z.enum(["new", "learning", "review", "relearning"]).optional().describe("Default review"),
+    due: z.string().describe("Next due time (ISO, or local 'YYYY-MM-DD HH:mm')"),
+    last_review: z.string().optional().describe("Last review in the other tool (default: due - stability, at most now)"),
+    stability: z.number().positive().max(36500).optional().describe("Days (default: the interval last_review → due)"),
+    difficulty: z.number().min(1).max(10).optional().describe("FSRS difficulty 1-10 (default 5)"),
+    reps: z.number().int().min(0).optional(),
+    lapses: z.number().int().min(0).optional(),
+  })
+  .describe("Schedule carried over from another tool, so imported cards keep their interval instead of restarting");
 const askMode = z
   .enum(ASK_MODES)
   .optional()
@@ -46,7 +64,7 @@ function tzSchema() {
  * tools/list until the connector is reconnected, and this stateless server can't push
  * tools/list_changed, so session_start reports both and the instructions say what to do.
  */
-export const SERVER_DATE = "2026-11-21";
+export const SERVER_DATE = "2026-11-22";
 
 /** Stable JSON: object keys sorted, so the hash doesn't depend on property order. */
 function stableJson(v: unknown): string {
@@ -101,6 +119,10 @@ const reviewFlags = {
     .describe("true = the learner volunteered this answer for a card that wasn't asked/due: kept in history, schedule NOT changed"),
 };
 
+const feedback = text()
+  .nullish()
+  .describe("Short feedback for the learner on this answer (shown in the review UI on this card and in their feedback inbox), e.g. the corrected sentence");
+
 const DEFAULT_TZ = (() => {
   const t = (env as unknown as { DEFAULT_TZ?: string }).DEFAULT_TZ;
   return t && isValidTz(t) ? t : FALLBACK_TZ;
@@ -137,7 +159,11 @@ Times: every timestamp is ISO UTC plus a "<field>_local" version in the learner'
 Versions: session_start returns server_version and tools_hash. If server_version/tools_hash differs from the one seen earlier in this conversation or in your notes, the tool schemas changed: ask the user to reconnect the connector (Settings → Connectors) so the new fields become available. Same if a tool these instructions mention seems missing.
 Unclosed sessions: session_start auto-closes the learner's sessions open for over 12 h and lists younger ones as open_sessions; close or ignore them. "since" starts at the latest end of any closed session.
 
-Editing: add_words with on_conflict "update" upserts; update_note / update_notes merge tags (replace_tags to replace, remove_tags to remove); bulk_import for large lists; lookup to check which words already exist. Only delete notes when the learner explicitly asks.`;
+Grade later: the learner can type an answer in the phone UI and press "Grade later" (free answers: sentences, "Say in Japanese" builds). That card is then neither asked nor counted as due until graded. session_start returns pending_grading per deck; get_pending_grading lists them (faces, accept, trap, notes, the learner's answer, answered_at). Grade each with rate (or session_end): card_id + rating; reviewed_at, answer and source default to the waiting answer's, so you can omit them. Add "feedback" (a short correction or encouragement, e.g. the natural sentence) whenever useful: the learner sees it in the UI.
+
+Furigana: in front, back, notes, trap and extra.example write {今日|きょう} (base|reading) over words the learner may not read yet. {漢字} without a reading takes the reading of the one word note whose kanji face is exactly that text; none or several → kept bare and returned in furigana_problems (then write the reading yourself). Readings change inside compounds (今日 きょう, 日 ひ/にち), so prefer explicit readings. Prompts return the raw text (with markup) plus display (readings in brackets, only those still needed: a reading is hidden once the word's kanji>kana card is in review with stability ≥ the learner's furigana_known_days setting) and ruby spans {text, reading, show}. Show the asked face (e.g. the Japanese model answer of a production card) only AFTER the learner answered. accept compares without markup; the kana reading of the whole sentence is accepted too.
+
+Editing: add_words with on_conflict "update" upserts, "merge" adds directions to an existing note (a kana-only word merges into the note with that kana, e.g. in another deck: no need to call lookup first); update_note / update_notes merge tags (replace_tags to replace, remove_tags to remove); bulk_import for large lists; lookup to check which words already exist (matching is global; deck only flags deck_mismatch unless deck_only: true). Imported cards: bulk_import rows (or set_schedule for existing cards) take a schedule from the other tool so they keep their interval. Only delete notes when the learner explicitly asks.`;
 
 function ok(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 1) }] };
@@ -170,6 +196,7 @@ const wordFields = {
 const basicFields = {
   front: text(),
   back: text(),
+  accept: z.array(text()).max(20).optional().describe("Other correct answers for the back (stored as extra.alt_backs), e.g. another natural phrasing"),
   reversible: z.boolean().optional().describe("Also create a back>front card"),
   notes: text().nullish(),
   trap,
@@ -186,6 +213,7 @@ const noteEdit = {
   notes: text().nullish(),
   trap,
   extra: extra().describe("Replaces extra"),
+  accept: z.array(text()).max(20).optional().describe("Basic notes: other correct backs (sets extra.alt_backs)"),
   tags: tags().optional().describe("Added to the existing tags (or replaces them with replace_tags: true)"),
   replace_tags: z.boolean().optional().describe("tags replaces all existing tags"),
   remove_tags: tags().optional(),
@@ -210,7 +238,9 @@ function registerTools(server: McpServer, store: Store): void {
         "the struggling notes (lapses, again/hard since `since`, or fragile after 2+ reviews; up to 15, often fewer), reviews since grouped by source (chat/lesson/self/ui), and the first due prompts (like get_due). " +
         "Counts: decks[].due.due_reviews = available_now + held_back (cards held back for a few hours because a sibling direction was just reviewed). " +
         "server_version / tools_hash: compare with earlier calls in this conversation (see instructions). " +
-        "open_sessions: sessions younger than 12 h that were never closed (session_id, started_at, age_hours, kind): close them with session_end (pass their reviews) or ignore them; older unclosed sessions are auto-closed here (closed at their last logged review) and a later session_end on one is still accepted.",
+        "open_sessions: sessions younger than 12 h that were never closed (session_id, started_at, age_hours, kind): close them with session_end (pass their reviews) or ignore them; older unclosed sessions are auto-closed here (closed at their last logged review) and a later session_end on one is still accepted. " +
+        "recently_closed_sessions: sessions closed in the last 24 h with ended_by (session_end | auto) and ended_reason. " +
+        "pending_grading (total and per deck): answers the learner typed in the UI with 'Grade later'; read them with get_pending_grading and grade them. Cards waiting for grading are not counted as due.",
       inputSchema: z.object({
         decks: z.array(short()).max(50).optional().describe("Deck names; all decks when omitted"),
         kind: z.enum(["text", "voice"]).optional().describe("voice: reviews in session_end default to source 'lesson'; text: 'chat'"),
@@ -234,7 +264,10 @@ function registerTools(server: McpServer, store: Store): void {
         "or a basic note {front, direction?}. An unknown word is created first when meaning is given (deck's default directions plus the reviewed direction), an unknown basic note when back is given. " +
         "Several reviews of one card apply in reviewed_at order (older than its last review → history replayed). " +
         "Validation errors (bad rating/time/direction, missing kana/direction, unknown session) abort everything. Ambiguous or unmatched entries are skipped and listed in `problems` with candidates (note_id, kanji, kana, meaning): fix them with rate. " +
-        "Returns per review the rating applied and next due, notes created, and problems.",
+        "A review of a card waiting for grading grades it (reviewed_at/answer/source default to the waiting answer's). feedback is shown to the learner. " +
+        "Retries: the exact same call again returns duplicate_request: true and writes nothing. A session already closed by session_end is refused (the error says when and what it saved) unless append: true, which adds this batch and skips reviews identical to ones already saved. " +
+        `${furiganaNote} ` +
+        "Returns per review the rating applied, next due and interval_days (next due − reviewed_at), notes created, and problems.",
       inputSchema: z.object({
         session_id: z.string(),
         reviews: z
@@ -255,6 +288,7 @@ function registerTools(server: McpServer, store: Store): void {
               notes: text().nullish().describe("Only used when the note is created"),
               trap,
               tags: tags().optional().describe("Only used when the note is created"),
+              feedback,
               ...reviewFlags,
             }),
           )
@@ -273,6 +307,7 @@ function registerTools(server: McpServer, store: Store): void {
         deck: short().optional().describe("Default deck for created notes (else the session's single deck, else your only deck)"),
         on_conflict: onConflict,
         source: source.optional().describe("Default source for all reviews"),
+        append: z.boolean().optional().describe("Add this batch to a session that a session_end already closed (identical reviews skipped)"),
         tz: tzSchema(),
       }),
       annotations: rw,
@@ -325,8 +360,8 @@ function registerTools(server: McpServer, store: Store): void {
       description:
         "Add Japanese vocabulary as word notes. kana is the reading (hiragana/katakana); kanji is optional (omit for kana-only words). " +
         "New notes get the deck's default_directions (see create_deck/update_deck) unless `directions` is given. " +
-        "Existing words (same kanji+kana) are skipped, or updated with on_conflict 'update' (meaning/notes/trap set, extra and tags merged, schedule kept). " +
-        "trap: a short pitfall shown after the answer.",
+        "Existing words (same kanji+kana) are skipped, updated with on_conflict 'update', or merged with 'merge' (directions switched on; a kana-only word merges into the single note with that kana, e.g. in another deck). " +
+        `trap: a short pitfall shown after the answer. ${furiganaNote}`,
       inputSchema: z.object({
         deck: short(),
         words: z.array(z.object(wordFields)).min(1).max(100),
@@ -334,7 +369,7 @@ function registerTools(server: McpServer, store: Store): void {
       }),
       annotations: rw,
     },
-    wrap(async (a) => store.addWords(a.deck, a.words, { on_conflict: a.on_conflict })),
+    wrap(async (a, tz) => store.addWords(a.deck, a.words, { on_conflict: a.on_conflict, tz })),
   );
 
   server.registerTool(
@@ -342,14 +377,15 @@ function registerTools(server: McpServer, store: Store): void {
     {
       description:
         "Add free-form front/back notes (sentences, grammar, phrases). reversible adds a back>front card. " +
-        "A note with exactly the same front and back as an existing one is not duplicated.",
+        "A note with the same front and back as an existing one (compared without furigana markup) is not duplicated. accept: other correct answers. " +
+        furiganaNote,
       inputSchema: z.object({
         deck: short(),
         cards: z.array(z.object(basicFields)).min(1).max(100),
       }),
       annotations: rw,
     },
-    wrap(async (a) => store.addBasic(a.deck, a.cards)),
+    wrap(async (a, tz) => store.addBasic(a.deck, a.cards, { tz })),
   );
 
   server.registerTool(
@@ -357,7 +393,9 @@ function registerTools(server: McpServer, store: Store): void {
     {
       description:
         "Import many words at once (up to 1000 rows, e.g. a vocabulary list). Either rows (JSON objects) or csv (text with a header line; columns deck, kanji, kana, meaning, notes, tags, trap; tags separated by ; or |). " +
-        "Rows with front+back become basic notes. Rows without kana+meaning (or without a deck) are reported in errors; the rest is imported. Same duplicate rules as add_words (on_conflict). New cards start as new.",
+        "Rows with front+back become basic notes. Rows without kana+meaning (or without a deck) are reported in errors; the rest is imported. Same duplicate rules as add_words (on_conflict, incl. merge). " +
+        "Per row: directions (word or basic directions; CSV: separated by ;), accept (basic: other correct backs), schedule (another tool's schedule for the new cards, so they keep their interval; CSV: JSON). " +
+        `Without schedule new cards start as new. ${furiganaNote}`,
       inputSchema: z.object({
         deck: short().optional().describe("Default deck for rows without one"),
         rows: z
@@ -372,16 +410,20 @@ function registerTools(server: McpServer, store: Store): void {
               trap: text().nullish(),
               front: text().nullish(),
               back: text().nullish(),
+              directions: z.array(direction).max(8).optional().describe("This row's directions (else the deck's defaults; basic: front>back)"),
+              accept: z.array(text()).max(20).optional().describe("Basic rows: other correct backs"),
+              schedule: scheduleSchema.optional(),
             }),
           )
           .max(1000)
           .optional(),
         csv: z.string().max(1_500_000).optional().describe("CSV text with a header line (at most ~1.5 MB)"),
         on_conflict: onConflict,
+        tz: tzSchema(),
       }),
       annotations: rw,
     },
-    wrap(async (a) => store.bulkImport(a)),
+    wrap(async (a, tz) => store.bulkImport({ ...a, tz } as never)),
   );
 
   server.registerTool(
@@ -389,15 +431,17 @@ function registerTools(server: McpServer, store: Store): void {
     {
       description:
         "Check which words already exist (up to 500 per call; one call for a whole lesson's vocabulary). Per word: found, note_id, meaning, trap, and each card's direction, state, last rating, next due, lapses, suspended. " +
-        "Matching: kanji+kana exact; kana alone matches the kana-only note or the single note with that kana, otherwise 'ambiguous' with candidates. deck narrows (matches in other decks are listed as candidates).",
+        "Matching: kanji+kana exact; kana alone matches the kana-only note or the single note with that kana, otherwise 'ambiguous' with candidates. " +
+        "Matching is global: deck only prefers that deck and flags deck_mismatch when the word is found elsewhere; deck_only: true restricts matching to the deck.",
       inputSchema: z.object({
         deck: short().optional(),
+        deck_only: z.boolean().optional().describe("Only notes in `deck` can match"),
         words: z.array(z.object({ kanji: short().nullish(), kana: short() })).min(1).max(500),
         tz: tzSchema(),
       }),
       annotations: ro,
     },
-    wrap(async (a) => store.lookup(a)),
+    wrap(async ({ tz: _, ...a }) => store.lookup(a)),
   );
 
   server.registerTool(
@@ -423,7 +467,9 @@ function registerTools(server: McpServer, store: Store): void {
     {
       description:
         "Edit a note. Changing faces updates its cards: adding kanji to a kana-only word creates the kanji cards; removing a face suspends the cards that need it (history is kept). " +
-        "tags are MERGED into the existing tags; use replace_tags: true to replace them, remove_tags to remove some. trap is shown after the answer.",
+        "tags are MERGED into the existing tags; use replace_tags: true to replace them, remove_tags to remove some. trap is shown after the answer. " +
+        "enabled_directions lists directions with an active card; switched-on directions needing a missing face are in waiting_for_face. " +
+        furiganaNote,
       inputSchema: z.object({ note_id: z.string(), ...noteEdit, tz: tzSchema() }),
       annotations: rw,
     },
@@ -485,7 +531,9 @@ function registerTools(server: McpServer, store: Store): void {
         "ask_mode: grouped (default, all faces at once), same_script (never mixes a Japanese answer with a meaning answer; best for phone answers), single (one card per prompt). " +
         "By default only the prompts showing the best face are returned per note (with same_script/single there may be several: ask them back-to-back) and other directions are held back " +
         "for sibling_gap_hours after a sibling was reviewed, so answers don't leak. " +
-        "after_answer {trap, notes}: show it only AFTER the learner answered, never with the prompt (the top-level `notes` is the same after-answer material). " +
+        "after_answer {trap, notes, example?, feedback?}: show it only AFTER the learner answered, never with the prompt (the top-level `notes` is the same after-answer material; feedback = your last feedback on that card). " +
+        "Furigana: fields with markup ({今日|きょう}) also come as display[field] (readings still needed, in brackets) and ruby[field] spans {text, reading, show}; show the asked face's display only after the answer. " +
+        "Cards waiting for grading (UI 'Grade later') are not returned. " +
         "include_not_due: practice ahead of schedule (not-yet-due cards after the due ones); rating such cards counts as an early review. " +
         "Counts: due_review_cards = due reviews askable now (all of them, also those beyond limit); held_back.cards lists due reviews held back by the sibling gap (with `until`; new cards held back are only counted in held_back.new_cards); " +
         "due_review_cards + held_back.due_review_cards = all due reviews (session_start's due_reviews). returned_cards = cards in the returned prompts.",
@@ -522,17 +570,20 @@ function registerTools(server: McpServer, store: Store): void {
       description:
         "Record review results, one entry per card_id (for content-addressed ratings at the end of a lesson use session_end). " +
         "reviewed_at may be in the past, e.g. for ratings from a lesson; out-of-order history is replayed. Accepts ISO with offset or local 'YYYY-MM-DD HH:mm' in tz. " +
-        "answer: what the learner actually said/typed (optional, kept in history).",
+        "answer: what the learner actually said/typed (optional, kept in history). feedback: shown to the learner in the UI. " +
+        "Grading answers from get_pending_grading: card_id + rating (+ feedback); reviewed_at, answer and source default to the waiting answer's. " +
+        "interval_days = next due − reviewed_at.",
       inputSchema: z.object({
         reviews: z
           .array(
             z.object({
               card_id: z.string(),
               rating,
-              reviewed_at: z.string().optional(),
-              source: source.optional().describe("Default 'chat'"),
+              reviewed_at: z.string().optional().describe("Default now (or, for a card waiting for grading, when the learner answered)"),
+              source: source.optional().describe("Default 'chat' ('ui' for an answer waiting for grading)"),
               answer: text().nullish(),
               session_id: z.string().nullish().describe("study session id from session_start, if any"),
+              feedback,
               ...reviewFlags,
             }),
           )
@@ -565,6 +616,63 @@ function registerTools(server: McpServer, store: Store): void {
     wrap(async (a) => store.noteHistory(a.note_id)),
   );
 
+  server.registerTool(
+    "get_pending_grading",
+    {
+      description:
+        "Answers the learner typed in the phone UI and sent with 'Grade later' (sentences, free production the UI can't check), oldest first. " +
+        "Per item: card_id, note_id, deck, direction (shown>asked), faces (front/back or kanji/kana/meaning, raw with furigana markup, plus display/ruby), accept, trap, notes, extra, the learner's answer, answered_at. " +
+        "Grade each with rate (card_id, rating, optional feedback; reviewed_at/answer/source default to the waiting answer's) or in session_end. Until graded, the card is not asked again.",
+      inputSchema: z.object({
+        deck: short().optional(),
+        limit: z.number().int().min(1).max(200).optional().describe("Default 50"),
+        tz: tzSchema(),
+      }),
+      annotations: ro,
+    },
+    wrap(async (a) => store.pendingGrading(a)),
+  );
+
+  server.registerTool(
+    "set_schedule",
+    {
+      description:
+        "Set existing cards' schedules from another tool (migration), e.g. cards imported earlier that restarted as new or in a 10-minute learning step. " +
+        "The given schedule becomes the card's starting point; reviews logged here after its last_review are applied on top (unless discard_existing_reviews). Find card_ids with search_notes or lookup.",
+      inputSchema: z.object({
+        cards: z
+          .array(
+            z.object({
+              card_id: z.string(),
+              schedule: scheduleSchema,
+              discard_existing_reviews: z
+                .boolean()
+                .optional()
+                .describe("true: reviews already logged for this card were placeholders (e.g. a 'good' written by an earlier import): keep them in history but stop applying them"),
+            }),
+          )
+          .min(1)
+          .max(500),
+        tz: tzSchema(),
+      }),
+      annotations: rw,
+    },
+    wrap(async (a, tz) => store.setSchedule(a.cards as never, { tz })),
+  );
+
+  server.registerTool(
+    "settings",
+    {
+      description:
+        "Read or change the learner's settings. furigana_known_days: a furigana reading is hidden once the word's kanji>kana card is in review with at least this stability (days; default 7). " +
+        "Call without fields to read.",
+      inputSchema: z.object({
+        furigana_known_days: z.number().min(0).max(3650).optional(),
+      }),
+      annotations: rw,
+    },
+    wrap(async (a) => (a.furigana_known_days === undefined ? store.getSettings() : store.updateSettings(a))),
+  );
 }
 
 // Computed once per isolate from the real tool definitions (handlers are never called on the probe).

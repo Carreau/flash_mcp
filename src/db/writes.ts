@@ -59,6 +59,8 @@ export interface LogInsert {
   verified: number;
   /** 0 for early (volunteered, not asked) answers: history only, no scheduling. */
   affects_schedule: number;
+  /** Teacher feedback shown to the learner. */
+  feedback?: string | null;
 }
 
 /** Split rows into chunks of at most CHUNK rows and ~MAX_PARAM_BYTES of JSON. */
@@ -101,6 +103,10 @@ export class Writes {
   tags: [string, string][] = [];
   logs: LogInsert[] = [];
   states: (SchedState & { id: string })[] = [];
+  /** Cards created in this batch with an imported schedule: state set and kept as initial_state. */
+  imported: (SchedState & { id: string })[] = [];
+  /** [pending_answer id, review_log id]: answers graded by a review in this batch. */
+  graded: [string, string][] = [];
   /** Arbitrary statements run last (e.g. closing a study session). */
   post: D1PreparedStatement[] = [];
 
@@ -129,7 +135,7 @@ export class Writes {
   get empty() {
     return ![
       this.first, this.decks, this.pre, [...this.noteUpdates.values()], this.clearTags, this.untag, this.notes,
-      this.cards, this.cardFlags, this.tags, this.logs, this.states, this.post,
+      this.cards, this.cardFlags, this.tags, this.logs, this.states, this.imported, this.graded, this.post,
     ].some((a) => a.length);
   }
 
@@ -217,6 +223,19 @@ export class Writes {
           ),
       );
     }
+    const cols = ["due", "stability", "difficulty", "elapsed_days", "scheduled_days", "learning_steps", "reps", "lapses", "state", "last_review"];
+    for (const c of chunks(this.imported)) {
+      s.push(
+        db
+          .prepare(
+            `UPDATE cards SET ${cols.map((k) => `${k} = json_extract(j.value, '$.${k}')`).join(", ")},
+               initial_state = json_remove(j.value, '$.id')
+             FROM json_each(?1) AS j
+             WHERE cards.id = json_extract(j.value, '$.id') AND cards.user_id = ?2`,
+          )
+          .bind(JSON.stringify(c), u),
+      );
+    }
     for (const c of chunks(this.cardFlags)) {
       s.push(
         db
@@ -241,17 +260,17 @@ export class Writes {
       s.push(
         db
           .prepare(
-            `INSERT INTO review_log (id, user_id, card_id, rating, reviewed_at, source, answer, session_id, verified, affects_schedule, created_at)
+            `INSERT INTO review_log (id, user_id, card_id, rating, reviewed_at, source, answer, session_id, verified, affects_schedule, feedback, created_at)
              SELECT json_extract(value, '$.id'), ?2, json_extract(value, '$.card_id'), json_extract(value, '$.rating'),
                json_extract(value, '$.reviewed_at'), json_extract(value, '$.source'), json_extract(value, '$.answer'),
-               json_extract(value, '$.session_id'), json_extract(value, '$.verified'), json_extract(value, '$.affects_schedule'), ?3
+               json_extract(value, '$.session_id'), json_extract(value, '$.verified'), json_extract(value, '$.affects_schedule'),
+               json_extract(value, '$.feedback'), ?3
              FROM json_each(?1) ORDER BY key`,
           )
           .bind(JSON.stringify(c), u, this.now),
       );
     }
     for (const c of chunks(this.states)) {
-      const cols = ["due", "stability", "difficulty", "elapsed_days", "scheduled_days", "learning_steps", "reps", "lapses", "state", "last_review"];
       s.push(
         db
           .prepare(
@@ -260,6 +279,16 @@ export class Writes {
              WHERE cards.id = json_extract(j.value, '$.id') AND cards.user_id = ?2`,
           )
           .bind(JSON.stringify(c), u),
+      );
+    }
+    for (const c of chunks(this.graded)) {
+      s.push(
+        db
+          .prepare(
+            `UPDATE pending_answers SET graded_at = ?3, review_id = json_extract(j.value, '$[1]') FROM json_each(?1) AS j
+             WHERE pending_answers.id = json_extract(j.value, '$[0]') AND pending_answers.user_id = ?2 AND pending_answers.graded_at IS NULL`,
+          )
+          .bind(JSON.stringify(c), u, this.now),
       );
     }
     s.push(...this.post);

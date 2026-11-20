@@ -626,13 +626,34 @@ describe("unclosed sessions", () => {
     const res = await store.sessionEnd(a.session_id, { reviews: [{ card_id: card, rating: "good" }] });
     expect(res.summary.reviews_applied).toBe(1);
     expect(await sessionRow(a.session_id)).toEqual({ ended_at: now, closed_by: "session_end" });
-    await expect(store.sessionEnd(a.session_id, { reviews: [{ card_id: card, rating: "good" }] })).rejects.toThrow(/already ended/);
+    // The identical call again (client retry) is reported as a duplicate, nothing written.
+    const again = await store.sessionEnd(a.session_id, { reviews: [{ card_id: card, rating: "good" }] });
+    expect(again).toMatchObject({ duplicate_request: true, ended_by: "session_end" });
+    // A different batch is refused, naming how the session was closed.
+    await expect(store.sessionEnd(a.session_id, { reviews: [{ card_id: card, rating: "hard" }] })).rejects.toThrow(/already ended.*ended_by: session_end/);
     expect(await count(`SELECT COUNT(*) AS n FROM review_log WHERE card_id = ?`, card)).toBe(1);
   });
 
-  it("a normally ended session is never reopened", async () => {
+  it("a normally ended session is never reopened; append adds to it and skips duplicates", async () => {
+    const [w] = await store.addWords("JP", [{ kanji: "犬", kana: "いぬ", meaning: "dog" }]);
+    const card = (await store.getNote(w!.note_id)).cards[0]!.card_id;
     const a = await store.sessionStart({ include_due: false });
-    await store.sessionEnd(a.session_id, {});
+    const at = iso(now - 10 * 60_000);
+    await store.sessionEnd(a.session_id, { reviews: [{ card_id: card, rating: "good", reviewed_at: at }] });
+    now += HOUR;
     await expect(store.sessionEnd(a.session_id, {})).rejects.toThrow(/already ended/);
+    const res = await store.sessionEnd(a.session_id, {
+      append: true,
+      reviews: [
+        { card_id: card, rating: "good", reviewed_at: at }, // already saved
+        { kanji: "犬", kana: "いぬ", direction: "kanji>meaning", rating: "hard", reviewed_at: iso(now - 30 * 60_000) },
+      ],
+    });
+    expect(res.reviews.map((r) => r.direction)).toEqual(["kanji>meaning"]);
+    expect(res.problems.map((p) => [p.index, p.status])).toEqual([[0, "duplicate"]]);
+    expect(res.summary).toMatchObject({ appended: true, reviews_applied: 1 });
+    expect(await count(`SELECT COUNT(*) AS n FROM review_log WHERE session_id = ?`, a.session_id)).toBe(2);
+    const s2 = await store.sessionStart({ include_due: false });
+    expect(s2.recently_closed_sessions[0]).toMatchObject({ session_id: a.session_id, ended_by: "session_end" });
   });
 });

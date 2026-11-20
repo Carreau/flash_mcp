@@ -4,35 +4,42 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141416" media="(prefers-color-scheme: dark)">
 <title>flash</title>
 <style>
 :root {
-  --bg: #f6f5f2; --fg: #1d1d1f; --muted: #6b6b72; --card: #ffffff; --line: #e2e0da; --soft: #efede8;
-  --accent: #2f63c9; --accent-fg: #fff; --ok: #1d7f47; --warn: #a86a12; --bad: #c0392b;
+  --bg: #f6f5f2; --fg: #1d1d1f; --muted: #66666d; --card: #ffffff; --line: #e2e0da; --soft: #efede8;
+  --accent: #2f63c9; --accent-fg: #fff; --ok: #1d7f47; --warn: #8f5a0c; --bad: #c0392b;
   --ok-bg: #e6f4ec; --warn-bg: #fbf0dc; --bad-bg: #fbe7e4; --new-bg: #e5edfb;
-  --radius: 10px;
+  --radius: 12px; --pad: 16px; --tap: 44px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --ja: system-ui, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #141416; --fg: #ececef; --muted: #9a9aa3; --card: #1d1d21; --line: #2f2f36; --soft: #26262c;
+    --bg: #141416; --fg: #ececef; --muted: #a0a0a9; --card: #1d1d21; --line: #34343c; --soft: #29292f;
     --accent: #7aa5ff; --accent-fg: #0d1526; --ok: #5cc98d; --warn: #e4ac52; --bad: #f07a6e;
     --ok-bg: #173325; --warn-bg: #3a2c12; --bad-bg: #3d1b18; --new-bg: #1c2a47;
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html, body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 var(--font); }
-[lang="ja"] { font-family: var(--ja); }
+[lang="ja"] { font-family: var(--ja); line-break: strict; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 button, input, select, textarea { font: inherit; color: inherit; }
 input, select, textarea {
-  background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; min-width: 0;
+  min-height: var(--tap);
 }
-input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input[type=checkbox] { min-height: 0; padding: 0; accent-color: var(--accent); }
+input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 button {
-  background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer;
+  background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: 9px 16px; cursor: pointer;
+  min-height: var(--tap); touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
 button:disabled { opacity: .5; cursor: default; }
 button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
@@ -40,109 +47,218 @@ button.danger { color: var(--bad); }
 button.link { background: none; border: none; padding: 4px 6px; color: var(--muted); }
 .muted { color: var(--muted); }
 .small { font-size: .85rem; }
+/* Small text links keep their look but get a 44px touch area. */
+.hit { position: relative; }
+.hit::after { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: var(--tap); min-width: var(--tap); transform: translateY(-50%); }
 
 header.top {
   position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line);
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 12px;
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
+  padding-top: max(4px, env(safe-area-inset-top));
 }
-.brand { font-weight: 700; letter-spacing: .02em; }
-nav.tabs { display: flex; gap: 2px; }
-nav.tabs a { padding: 6px 10px; border-radius: 8px; color: var(--muted); }
-nav.tabs a.on { background: var(--soft); color: var(--fg); font-weight: 600; text-decoration: none; }
-.top .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.top select { padding: 5px 8px; max-width: 42vw; }
-#email { max-width: 28vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 520px) { #email { display: none; } }
+.brand { font-weight: 700; letter-spacing: .02em; padding: 0 8px; }
+nav.tabs { display: flex; gap: 2px; flex: 1; min-width: 0; }
+nav.tabs a, .gear { display: flex; align-items: center; justify-content: center; min-height: var(--tap); border-radius: 10px; color: var(--muted); white-space: nowrap; }
+nav.tabs a { padding: 0 14px; }
+nav.tabs a.on, .gear.on { background: var(--soft); color: var(--fg); font-weight: 600; text-decoration: none; }
+.gear { font-size: 1.25rem; line-height: 1; min-width: var(--tap); }
+@media (max-width: 400px) { .brand { display: none; } }
 
-main { max-width: 860px; margin: 0 auto; padding: 12px; }
-.panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+main {
+  max-width: 860px; margin: 0 auto;
+  padding: 12px max(14px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+}
+main:has(> .rv-bar) { max-width: 640px; } /* review reads better as a narrow column on desktop */
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--pad); }
 .stack > * + * { margin-top: 12px; }
-h2 { font-size: 1.05rem; margin: 18px 0 8px; }
+h2 { font-size: 1.05rem; margin: 24px 2px 10px; }
+h2:first-child { margin-top: 6px; }
 
 /* Review */
-.rv-bar { display: flex; justify-content: space-between; font-size: .85rem; color: var(--muted); margin-bottom: 8px; }
-.rv-meta { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); }
-.badge { font-size: .72rem; padding: 1px 7px; border-radius: 99px; background: var(--new-bg); color: var(--accent); font-weight: 600; }
-.prompt { text-align: center; margin: 10px 0 14px; overflow-wrap: anywhere; white-space: pre-wrap; font-weight: 500; }
-.prompt.xl { font-size: clamp(3rem, 16vw, 5rem); line-height: 1.15; }
-.prompt.l { font-size: clamp(2rem, 9vw, 3rem); line-height: 1.2; }
-.prompt.m { font-size: 1.6rem; }
+.rv-bar { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: .85rem; color: var(--muted); margin: 2px 2px 10px; align-items: center; }
+.rv-bar .deckname { margin-left: auto; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45vw; }
+.rv-bar .deckname { padding: 12px 0 12px 12px; margin: -12px 0 -12px auto; }
+.rv-bar .deckname::after { content: " ▾"; color: var(--muted); }
+.banner { display: flex; align-items: center; min-height: var(--tap); background: var(--new-bg); color: var(--accent); border-radius: 10px; padding: 8px 14px; margin: 0 0 10px; font-size: .92rem; font-weight: 600; }
+.banner:hover { text-decoration: none; }
+.furi-toggle { font-size: .8rem; padding: 4px 10px; min-height: 30px; border-radius: 99px; }
+.furi-toggle.on { background: var(--new-bg); color: var(--accent); border-color: var(--accent); }
+rt { font-size: max(.5em, .66rem); font-weight: 400; color: var(--muted); }
+.prompt rt { font-size: max(.4em, .75rem); }
+.rv-meta { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); min-height: 30px; }
+.rv-meta .push { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-meta a.push { overflow: visible; }
+.badge { font-size: .72rem; padding: 1px 8px; border-radius: 99px; background: var(--new-bg); color: var(--accent); font-weight: 600; white-space: nowrap; }
+.prompt { text-align: center; margin: 16px 0 22px; overflow-wrap: anywhere; white-space: pre-wrap; font-weight: 500; }
+.prompt.xl { font-size: clamp(3.2rem, 18vw, 5.5rem); line-height: 1.15; margin: 10px 0 18px; }
+.prompt.l { font-size: clamp(2rem, 9vw, 3rem); line-height: 1.25; }
+.prompt.m { font-size: 1.6rem; line-height: 1.35; }
 .prompt.s { font-size: 1.2rem; text-align: left; }
-.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
-.field label { font-size: .8rem; color: var(--muted); }
-.field input { font-size: 1.25rem; padding: 10px 12px; }
-.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.prompt:has(ruby) { line-height: 1.7; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field label { font-size: .85rem; color: var(--muted); }
+.field input { font-size: 1.25rem; padding: 11px 14px; min-height: 52px; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .actions .primary { flex: 1; }
-.result { border-top: 1px solid var(--line); padding: 10px 0; }
+.ask-actions button { min-height: 50px; white-space: nowrap; }
+.ask-actions .flip { flex: 0 0 auto; }
+
+.result { border-top: 1px solid var(--line); padding: 14px 0 12px; }
 .result .head { display: flex; align-items: baseline; gap: 8px; }
-.mark { font-weight: 700; width: 1.2em; text-align: center; }
+.mark { font-weight: 700; min-width: 20px; text-align: center; white-space: nowrap; }
 .r-ok .mark { color: var(--ok); } .r-close .mark { color: var(--warn); } .r-bad .mark { color: var(--bad); }
-.yours { font-size: 1.1rem; }
-.r-bad .yours { text-decoration: line-through; color: var(--bad); }
+.yours, .expected, .also, .warn-note { margin-left: 28px; overflow-wrap: anywhere; }
+.yours .lead { font-size: .75rem; color: var(--muted); margin-right: 6px; }
+.yours { font-size: 1.05rem; margin-top: 2px; }
+.yours.blank { color: var(--muted); }
+.r-bad .yours { color: var(--bad); }
 .r-close .yours { color: var(--warn); }
-.expected { font-size: 1.15rem; margin: 2px 0 8px 1.9em; }
-.seg { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.seg button { border: none; border-radius: 0; background: var(--card); padding: 9px 2px; font-size: .9rem; }
+.expected { font-size: 1.3rem; font-weight: 500; line-height: 1.4; margin-top: 2px; }
+.expected:has(ruby) { line-height: 1.8; }
+.also { font-size: .85rem; color: var(--muted); margin-top: 2px; }
+.warn-note { color: var(--warn); font-size: .85rem; margin-top: 4px; }
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 12px; }
+.seg button { border: none; border-radius: 0; background: var(--card); padding: 4px 2px; min-height: 48px; font-size: .95rem; }
 .seg button + button { border-left: 1px solid var(--line); }
-.seg button.on[data-r="again"] { background: var(--bad-bg); color: var(--bad); font-weight: 700; }
-.seg button.on[data-r="hard"] { background: var(--warn-bg); color: var(--warn); font-weight: 700; }
-.seg button.on[data-r="good"] { background: var(--ok-bg); color: var(--ok); font-weight: 700; }
-.seg button.on[data-r="easy"] { background: var(--new-bg); color: var(--accent); font-weight: 700; }
-.fullnote { background: var(--soft); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
-.fullnote dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; margin: 0; }
+.seg button:focus-visible { outline-offset: -3px; }
+.seg button.on { font-weight: 700; }
+.seg button.on[data-r="again"] { background: var(--bad-bg); color: var(--bad); }
+.seg button.on[data-r="hard"] { background: var(--warn-bg); color: var(--warn); }
+.seg button.on[data-r="good"] { background: var(--ok-bg); color: var(--ok); }
+.seg button.on[data-r="easy"] { background: var(--new-bg); color: var(--accent); }
+/* Grade later: quiet text button on word faces, a full outlined button on free answers. Never solid: only Next is. */
+.later { display: block; margin: 2px 0 -8px auto; background: none; border-color: transparent; color: var(--muted); font-size: .85rem; padding: 4px 4px; }
+.later.on, .later.big { color: var(--accent); }
+.later.on { font-weight: 700; }
+.later.on::before { content: "✓ "; }
+.later.big { width: 100%; margin: 8px 0 0; min-height: 48px; font-size: 1rem; font-weight: 600; border-color: var(--accent); }
+.later.big.on { background: var(--new-bg); }
+.trap, .teacher { border-radius: 10px; padding: 10px 14px; margin-top: 12px; overflow-wrap: anywhere; }
+.trap { background: var(--warn-bg); color: var(--warn); }
+.teacher { background: var(--new-bg); }
+.teacher .who { font-size: .78rem; color: var(--accent); font-weight: 700; margin-bottom: 2px; }
+.fullnote { background: var(--soft); border-radius: 10px; padding: 10px 14px; margin-top: 12px; }
+.fullnote dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; margin: 0; }
 .fullnote dt { color: var(--muted); font-size: .85rem; padding-top: 2px; }
 .fullnote dd { margin: 0; overflow-wrap: anywhere; }
+.fullnote dd:has(ruby) { line-height: 1.8; }
+.editlink { font-size: .85rem; text-align: right; margin-top: 12px; }
+.fullnote + .editlink { margin-top: 10px; }
+/* Next stays reachable however long the result is. */
+.nextbar {
+  position: sticky; bottom: 0; z-index: 2; background: var(--card); border-top: 1px solid var(--line);
+  margin: 14px calc(-1 * var(--pad)) calc(-1 * var(--pad)); padding: 10px var(--pad) max(10px, env(safe-area-inset-bottom));
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.nextbar .primary { width: 100%; min-height: 50px; }
+@media (hover: none) { .key-hint { display: none; } }
 .pre { white-space: pre-wrap; }
 .done { text-align: center; padding: 40px 14px; }
 .done .big { font-size: 1.6rem; font-weight: 600; margin-bottom: 6px; }
 
 /* Cards */
 .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-.filters input[type=search] { flex: 1 1 200px; }
-.list { display: flex; flex-direction: column; gap: 6px; }
-.row { display: block; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 9px 12px; }
+.filters input[type=search] { flex: 1 1 100%; }
+.filters select { flex: 1 1 0; }
+@media (min-width: 640px) { .filters input[type=search] { flex: 1 1 240px; } .filters select { flex: 0 1 auto; } }
+.list { display: flex; flex-direction: column; gap: 8px; }
+.row { display: block; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
 .row:hover { text-decoration: none; border-color: var(--accent); }
-.row .line { display: flex; gap: 8px; align-items: baseline; overflow: hidden; white-space: nowrap; }
-.row .k { font-size: 1.2rem; font-weight: 600; }
+.row .line { display: flex; gap: 10px; align-items: baseline; overflow: hidden; white-space: nowrap; }
+.row .k { font-size: 1.25rem; font-weight: 600; }
 .row .mean { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
-.row .line.col { flex-direction: column; gap: 2px; }
+.row .line.col { flex-direction: column; align-items: stretch; gap: 2px; }
 .row .line.col > div { overflow: hidden; text-overflow: ellipsis; }
 .trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.chip, .tag { font-size: .75rem; padding: 1px 7px; border-radius: 99px; border: 1px solid transparent; white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip, .tag { font-size: .75rem; padding: 2px 8px; border-radius: 99px; border: 1px solid transparent; white-space: nowrap; }
 .tag { background: var(--soft); color: var(--muted); }
 .chip.st-new { background: var(--new-bg); color: var(--accent); }
 .chip.st-learning, .chip.st-relearning { background: var(--warn-bg); color: var(--warn); }
 .chip.st-review { background: var(--ok-bg); color: var(--ok); }
 .chip.susp { background: var(--soft); color: var(--muted); text-decoration: line-through; }
 .chip.due { border-color: currentColor; font-weight: 700; }
-.more { margin: 12px auto; display: block; }
+.more { margin: 14px auto; display: block; }
 
 /* Detail / tables */
-.form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.detail-top { display: flex; justify-content: space-between; align-items: center; }
+.detail-top a { display: inline-flex; align-items: center; min-height: var(--tap); padding-right: 12px; }
+.form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 @media (min-width: 640px) { .form { grid-template-columns: repeat(2, minmax(0, 1fr)); } .form .wide { grid-column: 1 / -1; } }
-.form label { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; color: var(--muted); }
+.form label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; color: var(--muted); }
 .form input, .form textarea, .form select { font-size: 1rem; color: var(--fg); }
-textarea { min-height: 70px; resize: vertical; }
-.dirs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }
-.dirs label { display: flex; gap: 8px; align-items: center; }
-.tablewrap { overflow-x: auto; }
+.form input[lang="ja"] { font-size: 1.15rem; }
+.form .actions button { min-height: 48px; }
+textarea { min-height: 76px; resize: vertical; }
+.dirs { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0 12px; padding-top: 6px; padding-bottom: 6px; }
+.dirs label { display: grid; grid-template-columns: 22px 3.4em minmax(0, 1fr); gap: 10px; align-items: center; min-height: var(--tap); }
+.dirs input[type=checkbox] { width: 22px; height: 22px; margin: 0; }
+.dirs label > span:first-of-type { white-space: nowrap; }
+.dirs .needs { display: block; }
+.tablewrap { overflow-x: auto; padding: 4px; }
 table { border-collapse: collapse; width: 100%; font-size: .88rem; }
-th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: none; }
 th { color: var(--muted); font-weight: 600; font-size: .78rem; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.wide { white-space: normal; min-width: 14em; }
+/* Phone: each table row becomes a small block (title, then labelled values) instead of a sideways scroll. */
+@media (max-width: 600px) {
+  .tablewrap { overflow: visible; padding: 0 var(--pad); }
+  table, tbody { display: block; }
+  thead { display: none; }
+  tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  tbody tr:last-child { border-bottom: none; }
+  td, td.num { display: block; border: none; padding: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; min-width: 0; }
+  td::before { content: attr(data-label); display: block; font-size: .72rem; color: var(--muted); font-weight: 400; }
+  td:first-child { grid-column: 1 / -1; font-size: 1rem; font-weight: 600; }
+  td:first-child::before { display: none; }
+  td.wide { grid-column: 1 / -1; }
+  td.empty { display: none; }
+  table.kv tr { grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; }
+  table.kv td:first-child { grid-column: auto; font-weight: 400; }
+  table.kv td::before { display: none; }
+}
 
 #toast {
-  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 20; max-width: calc(100% - 24px);
-  background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; box-shadow: 0 4px 18px rgba(0,0,0,.2);
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 60px); transform: translateX(-50%); z-index: 20;
+  width: max-content; max-width: calc(100% - 28px);
+  background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,.2);
   opacity: 0; pointer-events: none; transition: opacity .2s;
 }
 #toast.show { opacity: 1; pointer-events: auto; }
 #toast.err { background: var(--bad); color: #fff; }
-.rv-toggles { display: flex; gap: 14px; flex-wrap: wrap; font-size: .85rem; margin: 0 0 8px; opacity: .85; }
-.rv-toggles .toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
-.kb { display: inline-block; min-width: 1.4em; padding: 0 .3em; border: 1px solid currentColor; border-radius: 4px; font-size: .75em; text-align: center; opacity: .65; }
-.warn-note { color: var(--warn); font-size: .85rem; margin-top: 2px; }
+@media (prefers-color-scheme: dark) { #toast.err { color: #1d0b09; } }
+@media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+
+/* Settings */
+.set-group { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 16px; }
+.set-group h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0; padding: 14px var(--pad) 2px; }
+.set-row { display: flex; align-items: center; gap: 8px 14px; padding: 12px var(--pad); min-height: 56px; color: inherit; }
+a.set-row:hover { text-decoration: none; }
+.set-row + .set-row { border-top: 1px solid var(--line); }
+.set-row .lbl { flex: 1; min-width: 0; }
+.set-row .lbl small { display: block; color: var(--muted); font-size: .82rem; margin-top: 2px; }
+.set-row select { max-width: 55%; }
+.set-row input[type=number] { width: 5.5em; }
+.set-row input[type=checkbox] { width: 26px; height: 26px; flex: none; margin: 0; }
+.set-row .unit { display: flex; align-items: center; gap: 8px; }
+.set-row .chev { color: var(--muted); font-size: 1.3rem; }
+/* Rows with a long hint: control goes under the text instead of squeezing it. */
+.set-row.stack { flex-wrap: wrap; }
+.set-row.stack .lbl { flex: 1 1 100%; }
+.set-row.stack select { max-width: none; width: 100%; }
+@media (min-width: 640px) { .set-row.stack { flex-wrap: nowrap; } .set-row.stack .lbl { flex: 1; } .set-row.stack select { width: auto; max-width: 50%; } }
+
+/* Teacher feedback */
+.feed-item { border-top: 1px solid var(--line); padding: 14px 0; }
+.feed-item:first-child { border-top: none; padding-top: 0; }
+.feed-item:last-child { padding-bottom: 0; }
+.feed-item .face { font-size: 1.05rem; margin: 4px 0 2px; overflow-wrap: anywhere; }
+.feed-item .face:has(ruby) { line-height: 1.8; }
+.feed-item .teacher { margin-top: 8px; }
+.kb { display: inline-block; min-width: 1.4em; padding: 0 .3em; border: 1px solid currentColor; border-radius: 4px; font-size: .75em; text-align: center; opacity: .75; }
 </style>
 </head>
 <body>
@@ -153,11 +269,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     <a href="#/cards" data-tab="cards">Cards</a>
     <a href="#/stats" data-tab="stats">Stats</a>
   </nav>
-  <div class="right">
-    <select id="deck" aria-label="Deck filter"><option value="">All decks</option></select>
-    <span id="email" class="muted small"></span>
-    <button id="logout" class="link small" type="button">Log out</button>
-  </div>
+  <a href="#/settings" class="gear" data-tab="settings" title="Settings" aria-label="Settings">⚙︎</a>
 </header>
 <main id="main"></main>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -275,42 +387,53 @@ const fmtNum = (n, digits = 1) => (n == null || isNaN(n) ? "–" : Number(n).toF
 const fmtPct = (n) => (n == null || isNaN(n) ? "–" : Math.round(n <= 1 ? n * 100 : n) + "%");
 
 // ---------- shared state ----------
-const DECK_KEY = "flash.deck";
+// Per-device preferences (this phone); furigana_known_days is a server setting shared with the teacher.
+const store = {
+  get(k, d = "") { try { const v = localStorage.getItem("flash." + k); return v == null ? d : v; } catch { return d; } },
+  set(k, v) { try { if (v === "" || v == null) localStorage.removeItem("flash." + k); else localStorage.setItem("flash." + k, String(v)); } catch {} },
+};
 let decks = [];
-const curDeck = () => localStorage.getItem(DECK_KEY) || "";
+let me = null;
+const curDeck = () => store.get("deck");
 let seq = 0; // render token; stale async renders bail out
 
 async function loadTopBar() {
-  api("/api/me").then((me) => ($("#email").textContent = me?.email || "")).catch(() => {});
+  api("/api/me").then((m) => (me = m)).catch(() => {});
   let ok = true;
   try { decks = (await api("/api/decks")) || []; } catch { decks = []; ok = false; }
-  const sel = $("#deck");
-  const cur = curDeck();
-  sel.replaceChildren(h("option", { value: "" }, "All decks"),
-    ...decks.map((d) => h("option", { value: d.name }, `${d.name} (${d.due_reviews ?? 0} due)`)));
-  if (ok && cur && !decks.some((d) => d.name === cur)) localStorage.removeItem(DECK_KEY);
-  if (cur && !decks.some((d) => d.name === cur)) sel.append(h("option", { value: cur }, cur));
-  sel.value = curDeck();
+  if (ok && curDeck() && !decks.some((d) => d.name === curDeck())) store.set("deck", "");
 }
-$("#deck").addEventListener("change", (e) => {
-  if (e.target.value) localStorage.setItem(DECK_KEY, e.target.value);
-  else localStorage.removeItem(DECK_KEY);
-  route();
-});
-$("#logout").addEventListener("click", async () => {
+
+async function logout() {
   try {
     await fetch("/logout", { method: "POST", credentials: "same-origin", redirect: "manual",
       headers: { "X-Requested-With": "flash", "Content-Type": "application/json" }, body: "{}" });
   } catch {}
   location.href = "/login";
-});
+}
+
+// ---------- furigana ----------
+/** Text with furigana markup removed: {今日|きょう} → 今日. */
+const plain = (s) => String(s ?? "").replace(/\{([^{}|\n]+?)(?:\|[^{}|\n]*)?\}/g, "$1");
+/**
+ * Render a field: ruby spans from the API when it has furigana markup, else plain text.
+ * showAll: show every reading (the per-card furigana toggle), not only the ones still needed.
+ */
+function rich(item, field, text, showAll) {
+  const spans = item && item.ruby && item.ruby[field];
+  if (!spans) return plain(text);
+  return spans.map((sp) => (sp.reading && (sp.show || showAll))
+    ? h("ruby", null, sp.text, h("rp", null, "("), h("rt", null, sp.reading), h("rp", null, ")"))
+    : sp.text);
+}
+const hasRuby = (item) => !!(item && item.ruby && Object.values(item.ruby).some((sp) => sp.some((x) => x.reading)));
 
 // ---------- router ----------
 function route() {
   const tok = ++seq;
   const parts = (location.hash.replace(/^#\/?/, "") || "review").split("/");
   const tab = parts[0];
-  document.querySelectorAll("nav.tabs a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
+  document.querySelectorAll("[data-tab]").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
   main.replaceChildren();
   if (tab === "cards" && parts[1]) {
     let id;
@@ -319,9 +442,11 @@ function route() {
   }
   if (tab === "cards") return viewCards(tok);
   if (tab === "stats") return viewStats(tok);
+  if (tab === "settings") return viewSettings(tok);
+  if (tab === "feedback") return viewFeedback(tok);
   if (tab !== "review") {
     history.replaceState(null, "", "#/review");
-    document.querySelectorAll("nav.tabs a").forEach((a) => a.classList.toggle("on", a.dataset.tab === "review"));
+    document.querySelectorAll("[data-tab]").forEach((a) => a.classList.toggle("on", a.dataset.tab === "review"));
   }
   return viewReview(tok);
 }
@@ -329,42 +454,39 @@ window.addEventListener("hashchange", route);
 const curTab = () => (location.hash.replace(/^#\/?/, "") || "review").split("/")[0];
 
 // ---------- Review ----------
-const R = { queue: [], loaded: false, deckKey: null, done: 0, counts: null,
-  phase: "ask", results: null, ratings: {}, answers: {}, busy: false, gen: 0,
+const R = { queue: [], loaded: false, key: null, done: 0, counts: null,
+  phase: "ask", results: null, ratings: {}, answers: {}, busy: false, gen: 0, furiAll: false,
   // Practice: review cards that aren't due yet. Ratings are only saved if `record` is on.
-  practice: localStorage.getItem("flash.practice") === "1",
-  record: localStorage.getItem("flash.practiceRecord") === "1",
+  practice: store.get("practice") === "1",
+  record: store.get("practiceRecord") === "1",
+  pending: 0, unseen: 0,
   seen: new Set() };
+const askMode = () => store.get("askMode", "grouped");
+const reviewKey = () => [curDeck(), askMode(), R.practice, R.record].join("|");
+const saving = () => !R.practice || R.record;
 
 async function loadDue() {
   const params = R.practice
-    ? { deck: curDeck(), limit: 100, new_limit: 100, include_not_due: "true" }
-    : { deck: curDeck(), limit: 20 };
-  const d = await api("/api/due" + qs(params));
+    ? { deck: curDeck(), limit: 100, new_limit: 100, include_not_due: "true", ask_mode: askMode() }
+    : { deck: curDeck(), limit: 20, ask_mode: askMode() };
+  const [d, pend, fb] = await Promise.all([
+    api("/api/due" + qs(params)),
+    api("/api/pending" + qs({ deck: curDeck(), limit: 1 })).catch(() => null),
+    api("/api/feedback" + qs({ unseen: "1", limit: 1 })).catch(() => null),
+  ]);
   let items = (d && d.items) || [];
   // Unrecorded practice doesn't change schedules, so skip notes already practiced.
   if (R.practice && !R.record) items = items.filter((it) => !R.seen.has(it.note_id));
   R.queue = items;
   R.counts = d || {};
+  R.pending = pend ? pend.pending : 0;
+  R.unseen = fb ? fb.unseen : 0;
   R.loaded = true;
 }
 
-function practiceToggles() {
-  const reload = () => { R.loaded = false; R.seen.clear(); route(); };
-  const box = (label, checked, onchange, title) =>
-    h("label", { class: "toggle", title }, h("input", { type: "checkbox", checked: !!checked, onchange }), " " + label);
-  return h("div", { class: "rv-toggles" },
-    box("Practice (not due too)", R.practice, (e) => {
-      R.practice = e.target.checked; localStorage.setItem("flash.practice", R.practice ? "1" : "0"); reload();
-    }, "Review cards before they are due, e.g. for testing"),
-    R.practice ? box("record ratings", R.record, (e) => {
-      R.record = e.target.checked; localStorage.setItem("flash.practiceRecord", R.record ? "1" : "0"); reload();
-    }, "Off: practice answers are checked but not saved, so your schedule is untouched") : null);
-}
-
 async function viewReview(tok) {
-  if (!R.loaded || R.deckKey !== curDeck()) {
-    R.deckKey = curDeck(); R.done = 0;
+  if (!R.loaded || R.key !== reviewKey()) {
+    R.key = reviewKey(); R.done = 0;
     main.append(h("p", { class: "muted" }, "Loading…"));
     try { await loadDue(); } catch { if (tok === seq) main.replaceChildren(h("p", { class: "muted" }, "Could not load reviews.")); return; }
     if (tok !== seq) return;
@@ -373,37 +495,50 @@ async function viewReview(tok) {
   drawReview();
 }
 
-function resetItem() { R.gen++; R.phase = "ask"; R.results = null; R.ratings = {}; R.answers = {}; R.busy = false; }
+function resetItem() { R.gen++; R.phase = "ask"; R.results = null; R.ratings = {}; R.answers = {}; R.busy = false; R.furiAll = false; }
 const curItem = () => R.queue[0];
 const curPrompt = () => curItem()?.prompts?.[0];
+
+function topInfo() {
+  const c = R.counts || {};
+  const bar = h("div", { class: "rv-bar" },
+    h("span", null, `${c.due_review_cards ?? 0} due · ${c.new_cards_available ?? 0} new`),
+    R.pending ? h("a", { class: "hit", href: "#/feedback", title: "Answers waiting for your teacher" }, `${R.pending} to grade`) : null,
+    R.done ? h("span", null, `${R.done} done`) : null,
+    R.practice ? h("span", { class: "badge" }, R.record ? "practice · saved" : "practice · not saved") : null,
+    h("a", { class: "deckname", href: "#/settings", title: "Change deck and review settings" }, curDeck() || "All decks"));
+  const banner = R.unseen
+    ? h("a", { class: "banner", href: "#/feedback" }, `💬 ${R.unseen} new note${R.unseen === 1 ? "" : "s"} from your teacher`)
+    : null;
+  return banner ? [banner, bar] : [bar];
+}
 
 function drawReview() {
   if (curTab() !== "review") return;
   const c = R.counts || {};
   const item = curItem();
   if (!item || !curPrompt()) {
-    main.replaceChildren(practiceToggles(), h("div", { class: "panel done" },
+    main.replaceChildren(...topInfo(), h("div", { class: "panel done" },
       h("div", { class: "big" }, R.practice ? "Nothing left to practice" : "All done"),
       h("p", { class: "muted" }, `${R.done} reviewed this session · ${c.due_review_cards ?? 0} due · ${c.new_cards_available ?? 0} new available`),
+      R.pending ? h("p", { class: "muted" }, `${R.pending} answer${R.pending === 1 ? "" : "s"} waiting for your teacher.`) : null,
       h("button", { onclick: async () => { R.loaded = false; R.seen.clear(); route(); } }, "Check again")));
     return;
   }
   const p = curPrompt();
   const shown = item.faces?.[p.show] ?? "";
-  const len = [...shown].length;
+  const len = [...plain(shown)].length;
   const size = len <= 4 ? "xl" : len <= 10 ? "l" : len <= 30 ? "m" : "s";
-  const bar = h("div", { class: "rv-bar" },
-    h("span", null, `${c.due_review_cards ?? 0} due · ${c.new_cards_available ?? 0} new`),
-    h("span", null, `${R.done} done · ${R.queue.length} left`),
-    R.practice ? h("span", { class: "badge" }, R.record ? "practice · saved" : "practice · not saved") : null);
   const meta = h("div", { class: "rv-meta" },
     h("span", null, askLabel(p.ask.map((a) => a.face))),
     item.is_new ? h("span", { class: "badge" }, "new") : null,
-    h("span", { style: "margin-left:auto" }, item.deck || ""));
+    h("span", { class: "push" }, curDeck() ? "" : item.deck || ""),
+    hasRuby(item) ? h("button", { type: "button", class: "furi-toggle hit" + (R.furiAll ? " on" : ""), "aria-pressed": R.furiAll ? "true" : "false",
+      title: "Show all readings on this card", onclick: () => { R.furiAll = !R.furiAll; drawReview(); } }, "ふりがな") : null);
   const card = h("div", { class: "panel" }, meta,
-    h("div", { class: "prompt " + size, lang: langFor(p.show, shown) }, shown),
+    h("div", { class: "prompt " + size, lang: langFor(p.show, plain(shown)) }, rich(item, p.show, shown, R.furiAll)),
     R.phase === "ask" ? askForm(p) : resultView(item, p));
-  main.replaceChildren(practiceToggles(), bar, card);
+  main.replaceChildren(...topInfo(), card);
   if (R.phase === "ask") card.querySelector("input")?.focus();
   else card.querySelector("#next")?.focus({ preventScroll: true });
 }
@@ -425,16 +560,19 @@ function askForm(p) {
     const kb = h("span", { class: "kb", title: ja ? "Japanese keyboard (romaji is accepted too)" : "English keyboard" }, ja ? "あ" : "A");
     return h("div", { class: "field" }, h("label", { for: id }, FACE_LABEL[a.face] || a.face, " ", kb), inp);
   });
-  return h("div", null, inputs, h("div", { class: "actions" },
+  return h("div", null, inputs, h("div", { class: "actions ask-actions" },
     h("button", { class: "primary", id: "check", onclick: doCheck }, "Check"),
-    h("button", { onclick: doFlip }, "Show answer")));
+    h("button", { class: "flip", onclick: doFlip }, "Show answer")));
 }
+
+/** Free answers (basic notes: sentences, "Say in Japanese") can't be judged by exact match. */
+const freeAnswer = (item, a) => item.type === "basic" && (a.face === "back" || a.face === "front");
 
 async function doCheck() {
   if (R.busy) return;
   const p = curPrompt();
   if (!p) return;
-  const gen = R.gen;
+  const gen = R.gen, item = curItem();
   R.busy = true; $("#check") && ($("#check").disabled = true);
   try {
     const res = await api("/api/check", "POST",
@@ -444,7 +582,11 @@ async function doCheck() {
     for (const r of res || []) R.results[r.card_id] = r;
     for (const a of p.ask) {
       const r = R.results[a.card_id];
-      R.ratings[a.card_id] = r && r.correct ? "good" : r && r.close ? "hard" : "again";
+      const typed = (R.answers[a.card_id] || "").trim();
+      // A sentence that doesn't match exactly is left for the teacher by default.
+      R.ratings[a.card_id] = r && r.correct ? "good"
+        : freeAnswer(item, a) && typed && saving() ? "later"
+        : r && r.close ? "hard" : "again";
     }
     R.phase = "checked";
   } catch {} finally { if (gen === R.gen) R.busy = false; }
@@ -458,39 +600,61 @@ function resultView(item, p) {
   const rows = p.ask.map((a) => {
     const r = R.results?.[a.card_id];
     const ans = (R.answers[a.card_id] || "").trim();
-    const cls = !R.results ? "" : r?.correct ? "r-ok" : r?.close ? "r-close" : "r-bad";
-    const mark = !R.results ? "·" : r?.correct ? (r?.warning ? "✓⚠" : "✓") : r?.close ? "~" : "✗";
+    // An answer left to the teacher isn't judged here: no strike-through.
+    const toTeacher = R.ratings[a.card_id] === "later";
+    const cls = !R.results || toTeacher ? "" : r?.correct ? "r-ok" : r?.close ? "r-close" : "r-bad";
+    const mark = toTeacher ? "?" : !R.results ? "·" : r?.correct ? (r?.warning ? "✓⚠" : "✓") : r?.close ? "~" : "✗";
     const expected = (r?.expected?.length ? r.expected : a.accept) || [];
     const lang = langFor(a.face, expected.join(" "));
+    const rated = R.ratings[a.card_id];
     const seg = h("div", { class: "seg", role: "group", "aria-label": "Rate " + (FACE_LABEL[a.face] || a.face) },
-      RATINGS.map((rt, i) => h("button", { type: "button", "data-r": rt, class: R.ratings[a.card_id] === rt ? "on" : null,
-        "aria-pressed": R.ratings[a.card_id] === rt ? "true" : "false",
+      RATINGS.map((rt, i) => h("button", { type: "button", "data-r": rt, class: rated === rt ? "on" : null,
+        "aria-pressed": rated === rt ? "true" : "false",
         title: p.ask.length === 1 ? `${rt} (${i + 1})` : rt,
         onclick: () => { R.ratings[a.card_id] = rt; drawReview(); } }, rt[0].toUpperCase() + rt.slice(1))));
+    // "Grade later": keep the typed answer for the teacher; the card waits until graded.
+    const later = saving() ? h("button", { type: "button", class: "later" + (freeAnswer(item, a) ? " big" : "") + (rated === "later" ? " on" : ""),
+      "aria-pressed": rated === "later" ? "true" : "false", disabled: !ans,
+      title: ans ? "Send your answer to your teacher; this card waits until it is graded" + (p.ask.length === 1 ? " (5)" : "") : "Type an answer first",
+      onclick: () => { R.ratings[a.card_id] = "later"; drawReview(); } }, "Grade later (teacher)") : null;
+    // Model answer: with furigana when the field has markup; other accepted answers below.
+    const model = item.ruby && item.ruby[a.face] ? rich(item, a.face, item.faces[a.face], R.furiAll) : null;
+    const others = model ? expected.filter((x) => x !== plain(item.faces[a.face]) && !/^[ぁ-ゖー\s、。！？]+$/.test(x)) : [];
     return h("div", { class: "result " + cls },
       h("div", { class: "head" }, h("span", { class: "mark" }, mark),
-        h("span", { class: "muted small" }, FACE_LABEL[a.face] || a.face, r?.close && !r?.correct ? " · almost" : ""),
-        R.results ? h("span", { class: "yours", lang: ans ? lang : null }, ans || "(blank)") : null),
-      h("div", { class: "expected", lang }, expected.join(" · ")),
+        h("span", { class: "muted small" }, FACE_LABEL[a.face] || a.face, r?.close && !r?.correct ? " · almost" : "")),
+      // A correct answer identical to the single expected one isn't repeated.
+      R.results && !(r?.correct && expected.length === 1 && expected[0] === ans) ? h("div", { class: "yours" + (ans ? "" : " blank"), lang: ans ? langFor(a.face, ans) : null },
+        h("span", { class: "lead", lang: "en" }, "you"), ans || "(blank)") : null,
+      h("div", { class: "expected", lang }, model || expected.join(" · ")),
+      others.length ? h("div", { class: "also", lang }, "also: " + others.join(" · ")) : null,
       r?.warning ? h("div", { class: "warn-note" }, "⚠ " + r.warning) : null,
-      seg);
+      seg, later);
   });
   const ready = p.ask.every((a) => R.ratings[a.card_id]);
+  const aa = item.after_answer || {};
+  const fb = (aa.feedback || []).filter((f) => p.ask.some((a) => a.direction === f.direction));
   return h("div", null, rows,
-    h("div", { class: "actions", style: "margin-top:10px" },
-      h("button", { class: "primary", id: "next", disabled: !ready || R.busy, onclick: doNext }, "Next ⏎")),
-    fullNote(item));
+    aa.trap ? h("div", { class: "trap", lang: isJaText(aa.trap) ? "ja" : null }, "⚠ ", rich(item, "trap", aa.trap, R.furiAll)) : null,
+    fb.map((f) => h("div", { class: "teacher" }, h("div", { class: "who" }, "Teacher, last time" + (f.answer ? ` (you: ${f.answer})` : "")),
+      h("div", { class: "pre", lang: isJaText(f.feedback) ? "ja" : null }, f.feedback))),
+    fullNote(item, p),
+    h("div", { class: "nextbar" },
+      h("button", { class: "primary", id: "next", disabled: !ready || R.busy, onclick: doNext }, "Next", h("span", { class: "key-hint" }, " ⏎"))));
 }
 
-function fullNote(item) {
+/** The rest of the note: faces not already on screen (prompt and asked faces are), notes, example. */
+function fullNote(item, p) {
   const f = item.faces || {};
-  const keys = item.type === "basic" ? ["front", "back"] : ["kanji", "kana", "meaning"];
+  const onScreen = new Set([p.show, ...p.ask.map((a) => a.face)]);
+  const keys = (item.type === "basic" ? ["front", "back"] : ["kanji", "kana", "meaning"]).filter((k) => !onScreen.has(k));
   const dl = h("dl", null, keys.filter((k) => f[k]).map((k) =>
-    [h("dt", null, k), h("dd", { lang: langFor(k, f[k]), class: "pre" }, f[k])]));
-  if (item.notes) dl.append(h("dt", null, "notes"), h("dd", { class: "pre" }, item.notes));
-  return h("div", { class: "fullnote" }, dl,
-    h("div", { class: "small", style: "margin-top:6px;text-align:right" },
-      h("a", { href: "#/cards/" + encodeURIComponent(item.note_id) }, "Edit note")));
+    [h("dt", null, k), h("dd", { lang: langFor(k, plain(f[k])), class: "pre" }, rich(item, k, f[k], R.furiAll))]));
+  const aa = item.after_answer || {};
+  if (item.notes) dl.append(h("dt", null, "notes"), h("dd", { class: "pre" }, rich(item, "notes", item.notes, R.furiAll)));
+  if (aa.example) dl.append(h("dt", null, "example"), h("dd", { class: "pre", lang: "ja" }, rich(item, "example", aa.example, R.furiAll)));
+  return [dl.children.length ? h("div", { class: "fullnote" }, dl) : null,
+    h("div", { class: "editlink" }, h("a", { class: "hit", href: "#/cards/" + encodeURIComponent(item.note_id) }, "Edit note"))];
 }
 
 async function doNext() {
@@ -498,8 +662,14 @@ async function doNext() {
   if (R.busy || !p || !p.ask.every((a) => R.ratings[a.card_id])) return;
   const item = curItem(), gen = R.gen;
   R.busy = true; $("#next") && ($("#next").disabled = true);
+  const later = p.ask.filter((a) => R.ratings[a.card_id] === "later");
+  const rated = p.ask.filter((a) => R.ratings[a.card_id] !== "later");
   try {
-    if (!R.practice || R.record) await api("/api/rate", "POST", { reviews: p.ask.map((a) => {
+    if (saving() && later.length) {
+      await api("/api/grade-later", "POST", { answers: later.map((a) => ({ card_id: a.card_id, answer: (R.answers[a.card_id] || "").trim() })) });
+      R.pending += later.length;
+    }
+    if (saving() && rated.length) await api("/api/rate", "POST", { reviews: rated.map((a) => {
       const ans = (R.answers[a.card_id] || "").trim();
       const review = { card_id: a.card_id, rating: R.ratings[a.card_id] };
       if (ans && R.phase === "checked" && R.results) {
@@ -510,6 +680,7 @@ async function doNext() {
       return review;
     }) });
   } catch { if (gen === R.gen) { R.busy = false; drawReview(); } return; }
+  if (later.length) toast("Saved for your teacher", false);
   if (R.queue[0] === item) R.queue.shift();
   R.seen.add(item.note_id);
   R.done++;
@@ -523,10 +694,92 @@ document.addEventListener("keydown", (e) => {
   const p = curPrompt();
   if (!p || (e.target.closest && e.target.closest("header"))) return;
   if (e.key === "Enter" && e.target.tagName !== "A") { e.preventDefault(); doNext(); }
-  else if (p.ask.length === 1 && /^[1-4]$/.test(e.key) && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) {
-    R.ratings[p.ask[0].card_id] = RATINGS[+e.key - 1]; drawReview();
+  else if (p.ask.length === 1 && /^[1-5]$/.test(e.key) && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) {
+    if (e.key === "5" && !(saving() && (R.answers[p.ask[0].card_id] || "").trim())) return;
+    R.ratings[p.ask[0].card_id] = e.key === "5" ? "later" : RATINGS[+e.key - 1]; drawReview();
   }
 });
+
+// ---------- Settings ----------
+async function viewSettings(tok) {
+  let server = null;
+  try { server = await api("/api/settings"); } catch {}
+  if (tok !== seq) return;
+  const row = (label, hint, control, stack) => h("label", { class: "set-row" + (stack ? " stack" : "") }, h("span", { class: "lbl" }, label, hint ? h("small", null, hint) : null), control);
+  const group = (title, ...rows) => h("section", { class: "set-group" }, h("h3", null, title), rows);
+  const reload = () => { R.loaded = false; R.seen.clear(); };
+
+  const deckSel = h("select", { onchange: (e) => { store.set("deck", e.target.value); reload(); } },
+    h("option", { value: "" }, "All decks"),
+    decks.map((d) => h("option", { value: d.name }, `${d.name} (${d.due_reviews ?? 0} due)`)));
+  deckSel.value = curDeck();
+  const modeSel = h("select", { onchange: (e) => { store.set("askMode", e.target.value); reload(); } },
+    h("option", { value: "grouped" }, "All faces at once"),
+    h("option", { value: "same_script" }, "One keyboard at a time"),
+    h("option", { value: "single" }, "One card at a time"));
+  modeSel.value = askMode();
+  const recordBox = h("input", { type: "checkbox", checked: R.record, disabled: !R.practice, onchange: (e) => {
+    R.record = e.target.checked; store.set("practiceRecord", R.record ? "1" : "0"); reload(); } });
+  const practiceBox = h("input", { type: "checkbox", checked: R.practice, onchange: (e) => {
+    R.practice = e.target.checked; store.set("practice", R.practice ? "1" : "0"); recordBox.disabled = !R.practice; reload(); } });
+  const days = h("input", { type: "number", min: "0", max: "3650", step: "1", inputmode: "numeric",
+    value: server ? server.furigana_known_days : "", disabled: !server,
+    onchange: async (e) => {
+      const v = Number(e.target.value);
+      if (!Number.isFinite(v) || v < 0) { e.target.value = server.furigana_known_days; return; }
+      try { server = await api("/api/settings", "PUT", { furigana_known_days: v }); toast("Saved", false); reload(); }
+      catch { e.target.value = server.furigana_known_days; }
+    } });
+
+  main.replaceChildren(
+    group("Review",
+      row("Deck", null, deckSel),
+      row("Questions", "How many answers one card asks for. “One keyboard at a time” never mixes Japanese and English.", modeSel, true)),
+    group("Practice",
+      row("Practice ahead", "Also show cards that aren't due yet", practiceBox),
+      row("Save practice ratings", "Off: answers are checked but your schedule is untouched", recordBox)),
+    group("Furigana",
+      row("Hide a reading after", "Days of reliable reading (kanji → kana card) before its furigana is hidden. Shared with your teacher.",
+        h("span", { class: "unit" }, days, "days"), true)),
+    group("Teacher",
+      h("a", { class: "set-row", href: "#/feedback" }, h("span", { class: "lbl" }, "Feedback & answers to grade",
+        h("small", null, "Notes from your teacher, and answers you sent with “Grade later”")), h("span", { class: "chev", "aria-hidden": "true" }, "›"))),
+    group("Account",
+      h("div", { class: "set-row" }, h("span", { class: "lbl" }, "Signed in", h("small", null, me?.email || "")),
+        h("button", { type: "button", onclick: logout }, "Log out"))));
+}
+
+// ---------- Teacher feedback ----------
+async function viewFeedback(tok) {
+  main.append(h("p", { class: "muted" }, "Loading…"));
+  let fb, pend;
+  try { [fb, pend] = await Promise.all([api("/api/feedback" + qs({ limit: 50 })), api("/api/pending" + qs({ limit: 100 }))]); }
+  catch { if (tok === seq) main.replaceChildren(h("p", { class: "muted" }, "Could not load feedback.")); return; }
+  if (tok !== seq) return;
+  const faceLine = (f, item) => f.type === "basic" || f.front != null
+    ? h("div", { class: "face", lang: langFor("front", plain(f.front)) }, item ? rich(item, "front", f.front) : plain(f.front))
+    : h("div", { class: "face", lang: "ja" }, f.kanji ? `${f.kanji} ` : "", f.kana || "", h("span", { class: "muted" }, " · " + (f.meaning || "")));
+  const fbItems = (fb.items || []).map((x) => h("div", { class: "feed-item" },
+    h("div", { class: "rv-meta" }, h("span", null, relTime(x.reviewed_at)), h("span", { class: "badge" }, x.rating),
+      !x.seen ? h("span", { class: "badge" }, "new") : null,
+      h("a", { class: "push hit", href: "#/cards/" + encodeURIComponent(x.note_id) }, "card")),
+    faceLine(x.faces),
+    x.answer ? h("div", { class: "small muted" }, "You: ", h("span", { lang: isJaText(x.answer) ? "ja" : null }, x.answer)) : null,
+    h("div", { class: "teacher" }, h("div", { class: "pre", lang: isJaText(x.feedback) ? "ja" : null }, x.feedback))));
+  const pendItems = (pend.items || []).map((x) => h("div", { class: "feed-item" },
+    h("div", { class: "rv-meta" }, h("span", null, relTime(x.answered_at)), h("span", null, x.deck),
+      h("a", { class: "push hit", href: "#/cards/" + encodeURIComponent(x.note_id) }, "card")),
+    faceLine({ ...x.faces, type: x.type }, x),
+    h("div", { class: "small" }, "You: ", h("span", { lang: isJaText(x.answer) ? "ja" : null }, x.answer || "(blank)"))));
+  main.replaceChildren(
+    h("h2", null, "From your teacher"),
+    fbItems.length ? h("div", { class: "panel" }, fbItems) : h("p", { class: "muted small" }, "No feedback yet."),
+    h("h2", null, `Waiting for grading (${pend.pending ?? 0})`),
+    pendItems.length ? h("div", { class: "panel" }, pendItems)
+      : h("p", { class: "muted small" }, "Nothing waiting. Use “Grade later” on a card to send a free answer to your teacher."));
+  const unseen = (fb.items || []).filter((x) => !x.seen).map((x) => x.review_id);
+  if (unseen.length) api("/api/feedback/seen", "POST", { review_ids: unseen }).then(() => { R.unseen = Math.max(0, R.unseen - unseen.length); }).catch(() => {});
+}
 
 // ---------- Cards ----------
 const C = { query: "", type: "", tag: "" };
@@ -545,8 +798,8 @@ function chip(card) {
 
 function noteRow(n) {
   const line = n.type === "basic"
-    ? h("div", { class: "line col" }, h("div", { lang: langFor("front", n.front) }, n.front || ""),
-        h("div", { class: "mean", lang: langFor("back", n.back) }, "→ " + (n.back || "")))
+    ? h("div", { class: "line col" }, h("div", { lang: langFor("front", n.front) }, plain(n.front)),
+        h("div", { class: "mean", lang: langFor("back", n.back) }, "→ " + plain(n.back)))
     : h("div", { class: "line" }, n.kanji ? h("span", { class: "k", lang: "ja" }, n.kanji) : null,
         h("span", { lang: "ja", class: n.kanji ? null : "k" }, n.kana || ""), h("span", { class: "mean" }, n.meaning || ""));
   return h("a", { class: "row", href: "#/cards/" + encodeURIComponent(n.note_id) }, line,
@@ -626,6 +879,8 @@ function drawDetail(note) {
     try { const upd = await api("/api/notes/" + encodeURIComponent(note.note_id), "PATCH", body); tagsCache = null; toast("Saved", false); drawDetail({ ...note, ...upd, history: note.history }); }
     catch { saveBtn.disabled = false; }
   } }, faceInputs, inp("notes", "Notes", { area: true, wide: true }),
+    inp("trap", "Trap (shown after the answer)", { wide: true }),
+    h("p", { class: "wide muted small", style: "margin:0" }, "Furigana: write {今日|きょう} in front, back, notes or trap."),
     h("label", null, "Tags (comma-separated)", tagsIn), h("label", null, "Deck", deckSel),
     h("div", { class: "wide actions" }, saveBtn));
 
@@ -640,8 +895,8 @@ function drawDetail(note) {
         drawDetail({ ...note, ...upd, history: note.history });
       } catch { e.target.checked = !e.target.checked; e.target.disabled = false; }
     } });
-    return h("label", { title: DIR_NAME[d] }, cb, h("span", { lang: "ja" }, DIR_SHORT[d]), h("span", { class: "small" }, DIR_NAME[d]),
-      missing.length ? h("span", { class: "muted small" }, `(needs ${missing.join(", ")})`) : null);
+    return h("label", { title: DIR_NAME[d] }, cb, h("span", { lang: "ja" }, DIR_SHORT[d]), h("span", { class: "small" }, DIR_NAME[d],
+      missing.length ? h("span", { class: "muted needs" }, `needs ${missing.join(", ")}`) : null));
   }));
 
   const sched = table(["Direction", "State", "Due", "Reps", "Lapses", "Stability", "Recall"],
@@ -650,27 +905,37 @@ function drawDetail(note) {
       c.reps ?? 0, c.lapses ?? 0, c.stability_days != null ? fmtNum(c.stability_days) + "d" : "–", fmtPct(c.recall_now)]), [3, 4, 5, 6]);
   const hist = [...(note.history || [])].sort((a, b) => String(b.reviewed_at).localeCompare(String(a.reviewed_at)));
   const histT = hist.length
-    ? table(["When", "Direction", "Rating", "Source", "Answer"], hist.map((r) => [h("span", { title: fmtDate(r.reviewed_at) }, relTime(r.reviewed_at)),
-        dirShort(r.direction), typeof r.rating === "number" ? RATINGS[r.rating - 1] || r.rating : r.rating, r.source || "", h("span", { lang: isJaText(r.answer) ? "ja" : null }, r.answer || "")]))
+    ? table(["When", "Direction", "Rating", "Source", "Answer", "Teacher"], hist.map((r) => [h("span", { title: fmtDate(r.reviewed_at) }, relTime(r.reviewed_at)),
+        dirShort(r.direction), typeof r.rating === "number" ? RATINGS[r.rating - 1] || r.rating : r.rating, r.source || "", h("span", { lang: isJaText(r.answer) ? "ja" : null }, r.answer || ""),
+        h("span", { lang: isJaText(r.feedback) ? "ja" : null }, r.feedback || "")]), [], [4, 5])
     : h("p", { class: "muted small" }, "No reviews yet.");
 
-  main.replaceChildren(
-    h("div", { class: "actions", style: "justify-content:space-between;align-items:center" },
+  const waiting = (note.waiting_for_grading || []).length
+    ? h("p", { class: "banner" }, `${note.waiting_for_grading.length} answer(s) waiting for your teacher`) : null;
+  main.replaceChildren(...[
+    h("div", { class: "detail-top" },
       h("a", { href: "#/cards" }, "← Cards"),
       h("button", { class: "danger", onclick: async () => {
         if (!confirm("Delete this note and all its cards and history?")) return;
         try { await api("/api/notes/" + encodeURIComponent(note.note_id), "DELETE"); toast("Deleted", false); location.hash = "#/cards"; } catch {}
       } }, "Delete")),
+    waiting,
     h("h2", null, isWord ? "Word" : "Basic note"), form,
     h("h2", null, "Directions"), dirs,
     h("h2", null, "Schedule"), sched,
-    h("h2", null, "History"), histT);
+    h("h2", null, "History"), histT].filter(Boolean));
 }
 
-function table(headers, rows, numCols = []) {
-  return h("div", { class: "tablewrap panel", style: "padding:4px" }, h("table", null,
+/** wideCols: free-text columns (wrap, full width on a phone). data-label feeds the phone layout, where the header row is hidden. */
+function table(headers, rows, numCols = [], wideCols = []) {
+  const cell = (c, i) => {
+    const td = h("td", { "data-label": headers[i] }, c);
+    td.className = [numCols.includes(i) ? "num" : "", wideCols.includes(i) ? "wide" : "", td.textContent.trim() === "" ? "empty" : ""].filter(Boolean).join(" ");
+    return td;
+  };
+  return h("div", { class: "tablewrap panel" }, h("table", { class: headers.length === 2 ? "kv" : null },
     h("thead", null, h("tr", null, headers.map((t, i) => h("th", { class: numCols.includes(i) ? "num" : null }, t)))),
-    h("tbody", null, rows.map((r) => h("tr", null, r.map((c, i) => h("td", { class: numCols.includes(i) ? "num" : null }, c)))))));
+    h("tbody", null, rows.map((r) => h("tr", null, r.map(cell))))));
 }
 
 // ---------- Stats ----------
@@ -701,19 +966,19 @@ async function viewStats(tok) {
       : Array.isArray(per)
       ? per.map((x) => [x.direction, x.lapses])
       : per && typeof per === "object" ? Object.entries(per).map(([d, v]) => [d, typeof v === "object" && v ? v.lapses : v]) : [];
-    return [h("a", { href: "#/cards/" + encodeURIComponent(n.note_id), lang: langFor("kanji", label) }, label),
+    return [h("a", { class: "hit", href: "#/cards/" + encodeURIComponent(n.note_id), lang: langFor("kanji", label) }, label),
       h("span", { lang: "ja" }, n.kanji ? n.kana || "" : ""), h("span", { class: "muted" }, n.meaning || ""),
       n.lapses ?? 0, h("span", { class: "chips", style: "margin:0" }, perList.filter(([, v]) => v).map(([d, v]) =>
         h("span", { class: "tag", title: DIR_NAME[d] || d }, h("span", { lang: "ja" }, DIR_SHORT[d] || d), " " + v)))];
   });
 
   main.replaceChildren(
-    h("h2", { style: "margin-top:4px" }, "By direction", curDeck() ? h("span", { class: "muted small" }, " · " + curDeck()) : null),
+    h("h2", null, "By direction", curDeck() ? h("span", { class: "muted small" }, " · " + curDeck()) : null),
     by.length ? dirT : h("p", { class: "muted" }, "No cards yet."),
     h("h2", null, "Reviews by source"),
     srcRows.length ? table(["Source", "Reviews"], srcRows, [1]) : h("p", { class: "muted small" }, "No reviews yet."),
     h("h2", null, "Hardest notes"),
-    hard.length ? table(["Note", "Reading", "Meaning", "Lapses", "By direction"], hard, [3]) : h("p", { class: "muted small" }, "Nothing hard yet."));
+    hard.length ? table(["Note", "Reading", "Meaning", "Lapses", "By direction"], hard, [3], [4]) : h("p", { class: "muted small" }, "Nothing hard yet."));
 }
 
 // ---------- boot ----------
