@@ -1,0 +1,9 @@
+{
+  // Node-side scripts (tsx). Kept apart from the Worker typecheck so Node and
+  // Workers globals don't mix. Run: npx tsc --noEmit -p tsconfig.scripts.json
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["scripts"]
+}

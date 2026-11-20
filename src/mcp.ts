@@ -1,0 +1,490 @@
+import { McpServer } from "@modelcontextprotocol/server";
+import { env } from "cloudflare:workers";
+import { z } from "zod";
+import { ALL_DIRECTIONS, ASK_MODES, BASIC_DIRECTIONS, WORD_DIRECTIONS } from "./model/directions";
+import { FALLBACK_TZ, addLocalTimes, isValidTz } from "./model/time";
+import { FIELD_MAX, Store, UserError } from "./db/store";
+
+// Length limits keep every value (and every set-based insert chunk) far below D1's limits.
+const text = () => z.string().max(FIELD_MAX);
+const short = () => z.string().max(200);
+const EXTRA_MAX = 4000;
+const extra = () =>
+  z
+    .record(z.string(), z.unknown())
+    .refine((v) => JSON.stringify(v).length <= EXTRA_MAX, `extra must be at most ${EXTRA_MAX} characters as JSON`)
+    .nullish();
+const tags = () => z.array(short()).max(50);
+
+const direction = z.enum(ALL_DIRECTIONS as unknown as [string, ...string[]]);
+const wordDirection = z.enum(WORD_DIRECTIONS);
+const rating = z.enum(["again", "hard", "good", "easy"]);
+const source = z.enum(["chat", "lesson", "self", "ui"]);
+const onConflict = z
+  .enum(["skip", "update"])
+  .optional()
+  .describe("When the word (same kanji+kana) already exists: skip (default) or update its meaning/notes/trap, merge extra and tags; the schedule is kept");
+const askMode = z
+  .enum(ASK_MODES)
+  .optional()
+  .describe(
+    "grouped (default): one prompt asks every due face for the shown face (show 犬 → 'いぬ, dog'). " +
+      "same_script: never mixes a Japanese answer (kana/kanji) with a meaning answer in one prompt; e.g. show 犬 → prompt 1 asks the kana, prompt 2 (same face shown) asks the meaning. Best for phone answers (no keyboard switching). " +
+      "single: one card per prompt.",
+  );
+const trap = text()
+  .nullish()
+  .describe("Short pitfall for this note, e.g. 'ともだちに, not を' or '午 noon, not 牛 cow'. Shown only AFTER the learner answered.");
+
+function tzSchema() {
+  return z.string().optional().describe("IANA time zone for the *_local times in the output and for reviewed_at/since given without offset (default: the learner's zone)");
+}
+
+const DEFAULT_TZ = (() => {
+  const t = (env as unknown as { DEFAULT_TZ?: string }).DEFAULT_TZ;
+  return t && isValidTz(t) ? t : FALLBACK_TZ;
+})();
+
+const INSTRUCTIONS = `Personal flashcards with spaced repetition (FSRS), built for Japanese. You are usually acting as the learner's Japanese teacher.
+
+Decks are referenced by exact, case-sensitive name and are created automatically on first use, so call list_decks first and reuse existing names.
+
+Model: a *note* is what you learn; each note has one *card* per direction, each with its own schedule.
+- word notes have up to three faces: kanji, kana, meaning. Directions: ${WORD_DIRECTIONS.join(", ")}.
+  Defaults: kanji>kana (reading), kanji>meaning, kana>meaning, meaning>kana (production).
+  A word without kanji only gets kana>meaning and meaning>kana.
+  Each deck has default_directions for NEW notes (e.g. a kanji-reading deck with only kanji>kana + kanji>meaning); change them with update_deck.
+- basic notes (sentences, grammar, anything else): front>back, optionally back>front.
+
+Session workflow (one call at the start, one at the end):
+1. session_start(decks?, kind) → session_id, per-deck due counts, what went wrong since last time (struggled_since), hardest notes, and the first due prompts. Use it to plan the lesson.
+2. Quiz.
+   - Text session: use the due prompts (or get_due) and quiz live. Show the prompt face ("show"), ask the "ask" faces, judge each part separately against "accept". Rate as you go with rate, or collect ratings for session_end.
+   - Voice lesson: you cannot call tools while talking. Keep a log of every word asked: kanji/kana, direction, rating, approximate time, and new words / failed sentences.
+3. session_end(session_id, reviews[], add_words?, add_basic?) → writes everything in ONE atomic batch. Reviews may name the card by content ({kanji?, kana, direction, rating} or {front}) instead of card_id; unknown words are created when you give meaning. Read "problems" in the result: ambiguous or unmatched entries were skipped, fix them with card_id or kanji and rate them via rate.
+
+Prompts: get_due ask_mode "grouped" (default) asks all faces at once; "same_script" never mixes a Japanese answer with a meaning answer (best when the learner answers on a phone); "single" asks one card at a time. With same_script/single, several prompts may share the same shown face: ask them back-to-back. Reverse directions are held back for sibling_gap_hours so answers don't leak.
+After the answer (never with the prompt): show the item's after_answer.trap and after_answer.notes (the trap is the specific pitfall to remember).
+Kana faces: only the reading matters. Answers in romaji (neko) or kanji produced by IME completion are acceptable: rate them as correct and mention it briefly. Each ask entry lists "accept"; "accept_with_warning" (e.g. the shown kanji itself, for kanji>kana, which the IME produces from the typed reading) is also correct, but the reading couldn't be verified: rate it as correct and say so in one short sentence.
+Rate honestly: again = not recalled, hard = recalled with effort, good = recalled, easy = instant.
+
+Times: every timestamp is ISO UTC plus a "<field>_local" version in the learner's time zone (tz parameter, default ${DEFAULT_TZ}). reviewed_at accepts ISO with offset (2026-11-20T15:04+01:00) or local "YYYY-MM-DD HH:mm" read in tz. Past times are fine (lesson ratings entered later replay the history).
+
+Editing: add_words with on_conflict "update" upserts; update_note / update_notes merge tags (replace_tags to replace, remove_tags to remove); bulk_import for large lists; lookup to check which words already exist. Only delete notes when the learner explicitly asks.`;
+
+function ok(data: unknown) {
+  return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 1) }] };
+}
+
+/** Run a tool, add *_local times in the requested zone, turn UserErrors into tool errors. */
+function wrap<A extends object>(fn: (args: A, tz: string) => Promise<unknown>) {
+  return async (args: A) => {
+    try {
+      const tz = (args as { tz?: string }).tz || DEFAULT_TZ;
+      if (!isValidTz(tz)) throw new UserError(`Unknown time zone "${tz}" (use an IANA name like Europe/Paris)`);
+      return ok(addLocalTimes(await fn(args, tz), tz));
+    } catch (e) {
+      if (e instanceof UserError) return { content: [{ type: "text" as const, text: e.message }], isError: true };
+      throw e;
+    }
+  };
+}
+
+const wordFields = {
+  kanji: short().nullish().describe("Omit for kana-only words"),
+  kana: short().describe("Reading in hiragana/katakana"),
+  meaning: text(),
+  notes: text().nullish().describe("Explanation/usage; shown after the answer"),
+  trap,
+  tags: tags().optional(),
+  directions: z.array(wordDirection).optional().describe("Override the deck's default directions for this new note"),
+  extra: extra().describe("alt_kana / alt_kanji / alt_meanings arrays, pos, example"),
+};
+const basicFields = {
+  front: text(),
+  back: text(),
+  reversible: z.boolean().optional().describe("Also create a back>front card"),
+  notes: text().nullish(),
+  trap,
+  tags: tags().optional(),
+  extra: extra(),
+};
+const noteEdit = {
+  deck: short().optional().describe("Move to this deck (created if it doesn't exist)"),
+  kanji: short().nullish().describe("null removes the kanji (its cards are suspended)"),
+  kana: short().optional(),
+  meaning: text().optional(),
+  front: text().optional(),
+  back: text().optional(),
+  notes: text().nullish(),
+  trap,
+  extra: extra().describe("Replaces extra"),
+  tags: tags().optional().describe("Added to the existing tags (or replaces them with replace_tags: true)"),
+  replace_tags: z.boolean().optional().describe("tags replaces all existing tags"),
+  remove_tags: tags().optional(),
+};
+
+export function buildServer(store: Store): McpServer {
+  const server = new McpServer({ name: "flash-mcp", version: "0.2.0" }, { instructions: INSTRUCTIONS });
+  const ro = { readOnlyHint: true, openWorldHint: false };
+  const rw = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
+
+  server.registerTool(
+    "session_start",
+    {
+      description:
+        "Open a study session (call once at the start of every lesson/quiz). Returns session_id (pass it to session_end), and per deck: due counts per direction " +
+        "(due reviews, new available, learning), cards rated again/hard since `since` (default: end of the last session, else 7 days ago) with their latest rating, " +
+        "the hardest notes (most lapses / lowest stability, up to 15), reviews since grouped by source (chat/lesson/self/ui), and the first due prompts (like get_due).",
+      inputSchema: z.object({
+        decks: z.array(short()).max(50).optional().describe("Deck names; all decks when omitted"),
+        kind: z.enum(["text", "voice"]).optional().describe("voice: reviews in session_end default to source 'lesson'; text: 'chat'"),
+        since: z.string().optional().describe("Override the 'since last time' window start (ISO, or local 'YYYY-MM-DD HH:mm')"),
+        include_due: z.boolean().optional().describe("Include due prompts (default true)"),
+        due_limit: z.number().int().min(1).max(100).optional().describe("Max notes in the due list (default 20)"),
+        ask_mode: askMode,
+        tz: tzSchema(),
+      }),
+      annotations: rw,
+    },
+    wrap(async (a, tz) => store.sessionStart({ ...a, tz })),
+  );
+
+  server.registerTool(
+    "session_end",
+    {
+      description:
+        "Close a study session and write everything in ONE atomic batch: add_words / add_basic first, then all reviews, then the session's end time (used as `since` by the next session_start). " +
+        "Each review names its card by card_id, or by content: a word {kanji?, kana, direction, rating} (kanji+kana must match exactly; kana alone matches the kana-only note or the single note with that kana; deck narrows), " +
+        "or a basic note {front, direction?}. An unknown word is created first when meaning is given (deck's default directions plus the reviewed direction), an unknown basic note when back is given. " +
+        "Several reviews of one card apply in reviewed_at order (older than its last review → history replayed). " +
+        "Validation errors (bad rating/time/direction, missing kana/direction, unknown session) abort everything. Ambiguous or unmatched entries are skipped and listed in `problems` with candidates (note_id, kanji, kana, meaning): fix them with rate. " +
+        "Returns per review the rating applied and next due, notes created, and problems.",
+      inputSchema: z.object({
+        session_id: z.string(),
+        reviews: z
+          .array(
+            z.object({
+              card_id: z.string().optional().describe("Exact card (from get_due/session_start); otherwise identify by content"),
+              deck: short().optional().describe("Narrows matching; deck for creating an unknown word"),
+              kanji: short().nullish(),
+              kana: short().optional(),
+              meaning: text().optional().describe("Needed to create an unknown word; also disambiguates homophones"),
+              front: text().optional().describe("Basic note front (instead of kana)"),
+              back: text().optional().describe("Needed to create an unknown basic note"),
+              direction: direction.optional().describe("Required for words, e.g. kanji>kana; basic defaults to front>back"),
+              rating,
+              reviewed_at: z.string().optional().describe("When it was asked: ISO with offset, or local 'YYYY-MM-DD HH:mm' in tz. Default now"),
+              answer: text().nullish().describe("What the learner actually said/typed"),
+              source: source.optional().describe("Default: 'lesson' for voice sessions, else 'chat'"),
+              notes: text().nullish().describe("Only used when the note is created"),
+              trap,
+              tags: tags().optional().describe("Only used when the note is created"),
+            }),
+          )
+          .max(300)
+          .optional(),
+        add_words: z
+          .array(z.object({ deck: short().optional(), ...wordFields }))
+          .max(200)
+          .optional()
+          .describe("New words from the lesson (same as add_words)"),
+        add_basic: z
+          .array(z.object({ deck: short().optional(), ...basicFields }))
+          .max(200)
+          .optional()
+          .describe("New sentences/grammar, e.g. failed sentences (same as add_basic)"),
+        deck: short().optional().describe("Default deck for created notes (else the session's single deck, else your only deck)"),
+        on_conflict: onConflict,
+        source: source.optional().describe("Default source for all reviews"),
+        tz: tzSchema(),
+      }),
+      annotations: rw,
+    },
+    wrap(async ({ session_id, ...a }, tz) => store.sessionEnd(session_id, { ...a, tz } as never)),
+  );
+
+  server.registerTool(
+    "list_decks",
+    { description: "List decks with note, card and due counts and their default directions.", inputSchema: z.object({ tz: tzSchema() }), annotations: ro },
+    wrap(async () => store.listDecks()),
+  );
+
+  server.registerTool(
+    "create_deck",
+    {
+      description:
+        "Create a deck (decks are also created automatically on first add). default_directions are the directions NEW word notes in this deck get, " +
+        "e.g. a kanji-reading deck with only ['kanji>kana', 'kanji>meaning']. Default: kanji>kana, kanji>meaning, kana>meaning, meaning>kana. Change later with update_deck.",
+      inputSchema: z.object({
+        name: short(),
+        description: text().optional(),
+        default_directions: z.array(wordDirection).optional(),
+      }),
+      annotations: rw,
+    },
+    wrap(async (a) => store.createDeck(a.name, a.description, a.default_directions)),
+  );
+
+  server.registerTool(
+    "update_deck",
+    {
+      description:
+        "Change a deck's description or default_directions. Defaults apply to notes added later. apply_to_existing: true also sets the directions of every existing word note in the deck " +
+        "and reconciles cards: directions switched off are suspended (history kept, never deleted), switched-on ones are created or reactivated.",
+      inputSchema: z.object({
+        name: short(),
+        default_directions: z.array(wordDirection).min(1).optional(),
+        description: text().nullish(),
+        apply_to_existing: z.boolean().optional(),
+      }),
+      annotations: rw,
+    },
+    wrap(async ({ name, ...a }) => store.updateDeck(name, a as never)),
+  );
+
+  server.registerTool(
+    "add_words",
+    {
+      description:
+        "Add Japanese vocabulary as word notes. kana is the reading (hiragana/katakana); kanji is optional (omit for kana-only words). " +
+        "New notes get the deck's default_directions (see create_deck/update_deck) unless `directions` is given. " +
+        "Existing words (same kanji+kana) are skipped, or updated with on_conflict 'update' (meaning/notes/trap set, extra and tags merged, schedule kept). " +
+        "trap: a short pitfall shown after the answer.",
+      inputSchema: z.object({
+        deck: short(),
+        words: z.array(z.object(wordFields)).min(1).max(100),
+        on_conflict: onConflict,
+      }),
+      annotations: rw,
+    },
+    wrap(async (a) => store.addWords(a.deck, a.words, { on_conflict: a.on_conflict })),
+  );
+
+  server.registerTool(
+    "add_basic",
+    {
+      description:
+        "Add free-form front/back notes (sentences, grammar, phrases). reversible adds a back>front card. " +
+        "A note with exactly the same front and back as an existing one is not duplicated.",
+      inputSchema: z.object({
+        deck: short(),
+        cards: z.array(z.object(basicFields)).min(1).max(100),
+      }),
+      annotations: rw,
+    },
+    wrap(async (a) => store.addBasic(a.deck, a.cards)),
+  );
+
+  server.registerTool(
+    "bulk_import",
+    {
+      description:
+        "Import many words at once (up to 1000 rows, e.g. a vocabulary list). Either rows (JSON objects) or csv (text with a header line; columns deck, kanji, kana, meaning, notes, tags, trap; tags separated by ; or |). " +
+        "Rows with front+back become basic notes. Rows without kana+meaning (or without a deck) are reported in errors; the rest is imported. Same duplicate rules as add_words (on_conflict). New cards start as new.",
+      inputSchema: z.object({
+        deck: short().optional().describe("Default deck for rows without one"),
+        rows: z
+          .array(
+            z.object({
+              deck: short().optional(),
+              kanji: short().nullish(),
+              kana: short().nullish(),
+              meaning: text().nullish(),
+              notes: text().nullish(),
+              tags: z.union([tags(), text()]).optional(),
+              trap: text().nullish(),
+              front: text().nullish(),
+              back: text().nullish(),
+            }),
+          )
+          .max(1000)
+          .optional(),
+        csv: z.string().max(1_500_000).optional().describe("CSV text with a header line (at most ~1.5 MB)"),
+        on_conflict: onConflict,
+      }),
+      annotations: rw,
+    },
+    wrap(async (a) => store.bulkImport(a)),
+  );
+
+  server.registerTool(
+    "lookup",
+    {
+      description:
+        "Check which words already exist (up to 500 per call; one call for a whole lesson's vocabulary). Per word: found, note_id, meaning, trap, and each card's direction, state, last rating, next due, lapses, suspended. " +
+        "Matching: kanji+kana exact; kana alone matches the kana-only note or the single note with that kana, otherwise 'ambiguous' with candidates. deck narrows (matches in other decks are listed as candidates).",
+      inputSchema: z.object({
+        deck: short().optional(),
+        words: z.array(z.object({ kanji: short().nullish(), kana: short() })).min(1).max(500),
+        tz: tzSchema(),
+      }),
+      annotations: ro,
+    },
+    wrap(async (a) => store.lookup(a)),
+  );
+
+  server.registerTool(
+    "search_notes",
+    {
+      description: "Find notes by text (matches kanji, kana, meaning, front, back, notes), deck, tag or type. Returns cards with their schedule.",
+      inputSchema: z.object({
+        query: z.string().optional(),
+        deck: short().optional(),
+        tag: z.string().optional(),
+        type: z.enum(["word", "basic"]).optional(),
+        limit: z.number().int().min(1).max(100).optional().describe("Default 50, max 100; page with offset"),
+        offset: z.number().int().min(0).optional(),
+        tz: tzSchema(),
+      }),
+      annotations: ro,
+    },
+    wrap(async ({ tz: _, ...a }) => store.searchNotes(a)),
+  );
+
+  server.registerTool(
+    "update_note",
+    {
+      description:
+        "Edit a note. Changing faces updates its cards: adding kanji to a kana-only word creates the kanji cards; removing a face suspends the cards that need it (history is kept). " +
+        "tags are MERGED into the existing tags; use replace_tags: true to replace them, remove_tags to remove some. trap is shown after the answer.",
+      inputSchema: z.object({ note_id: z.string(), ...noteEdit, tz: tzSchema() }),
+      annotations: rw,
+    },
+    wrap(async ({ note_id, tz: _, ...fields }) => store.updateNote(note_id, fields)),
+  );
+
+  server.registerTool(
+    "update_notes",
+    {
+      description: "Edit several notes in one atomic call (same fields and tag semantics as update_note). Any error aborts all edits.",
+      inputSchema: z.object({
+        updates: z.array(z.object({ note_id: z.string(), ...noteEdit })).min(1).max(100),
+        tz: tzSchema(),
+      }),
+      annotations: rw,
+    },
+    wrap(async (a) => store.updateNotes(a.updates)),
+  );
+
+  server.registerTool(
+    "set_directions",
+    {
+      description: `Switch directions on or off for a note. Off = card suspended, history kept. Word: ${WORD_DIRECTIONS.join(", ")}. Basic: ${BASIC_DIRECTIONS.join(", ")}.`,
+      inputSchema: z.object({
+        note_id: z.string(),
+        enable: z.array(direction).optional(),
+        disable: z.array(direction).optional(),
+        tz: tzSchema(),
+      }),
+      annotations: rw,
+    },
+    wrap(async (a) => store.setDirections(a.note_id, a.enable as never, a.disable as never)),
+  );
+
+  server.registerTool(
+    "delete_note",
+    {
+      description:
+        "Permanently delete notes with all their cards and review history. ONLY when the learner explicitly asks to delete; to pause a card use set_directions instead. " +
+        "Requires confirm: true. Returns what was deleted (faces, card and review counts).",
+      inputSchema: z.object({
+        note_ids: z.array(z.string()).min(1).max(100).optional(),
+        note_id: z.string().optional().describe("Single note (older form of note_ids)"),
+        confirm: z.boolean().describe("Must be true: the learner explicitly asked for this deletion"),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    },
+    wrap(async (a) => {
+      const ids = [...(a.note_ids ?? []), ...(a.note_id ? [a.note_id] : [])];
+      return store.deleteNotes(ids, { confirm: a.confirm });
+    }),
+  );
+
+  server.registerTool(
+    "get_due",
+    {
+      description:
+        "Get cards due for review, grouped per note into prompts: show the `show` face and ask for the faces in `ask`, grading each card_id separately. " +
+        "ask_mode: grouped (default, all faces at once), same_script (never mixes a Japanese answer with a meaning answer; best for phone answers), single (one card per prompt). " +
+        "By default only the prompts showing the best face are returned per note (with same_script/single there may be several: ask them back-to-back) and other directions are held back " +
+        "for sibling_gap_hours after a sibling was reviewed, so answers don't leak. " +
+        "after_answer {trap, notes}: show it only AFTER the learner answered, never with the prompt (the top-level `notes` is the same after-answer material). " +
+        "include_not_due: practice ahead of schedule (not-yet-due cards after the due ones); rating such cards counts as an early review.",
+      inputSchema: z.object({
+        deck: short().optional(),
+        decks: z.array(short()).max(50).optional().describe("Several decks"),
+        tag: z.string().optional(),
+        directions: z.array(direction).optional().describe("Only these directions, e.g. ['meaning>kana'] to drill production"),
+        ask_mode: askMode,
+        limit: z.number().int().min(1).max(200).optional().describe("Max notes (default 20)"),
+        include_new: z.boolean().optional().describe("Include never-reviewed cards (default true)"),
+        new_limit: z.number().int().min(0).max(200).optional().describe("Max new notes (default 10)"),
+        sibling_gap_hours: z
+          .number()
+          .min(0)
+          .max(72)
+          .optional()
+          .describe("Hold back a card for this long after another direction of the same word was reviewed (default 6)"),
+        all_prompts: z
+          .boolean()
+          .optional()
+          .describe("Return every due prompt per note instead of only those for the best shown face (answers may leak between them)"),
+        include_not_due: z.boolean().optional().describe("Practice ahead: also return cards not due yet, ignoring the sibling gap (default false)"),
+        tz: tzSchema(),
+      }),
+      annotations: ro,
+    },
+    wrap(async ({ tz: _, ...a }) => store.getDue({ ...a, directions: a.directions as never })),
+  );
+
+  server.registerTool(
+    "rate",
+    {
+      description:
+        "Record review results, one entry per card_id (for content-addressed ratings at the end of a lesson use session_end). " +
+        "reviewed_at may be in the past, e.g. for ratings from a lesson; out-of-order history is replayed. Accepts ISO with offset or local 'YYYY-MM-DD HH:mm' in tz. " +
+        "answer: what the learner actually said/typed (optional, kept in history).",
+      inputSchema: z.object({
+        reviews: z
+          .array(
+            z.object({
+              card_id: z.string(),
+              rating,
+              reviewed_at: z.string().optional(),
+              source: source.optional().describe("Default 'chat'"),
+              answer: text().nullish(),
+              session_id: z.string().nullish().describe("study session id from session_start, if any"),
+            }),
+          )
+          .min(1)
+          .max(100),
+        tz: tzSchema(),
+      }),
+      annotations: rw,
+    },
+    wrap(async (a, tz) => store.rate(a.reviews, { tz })),
+  );
+
+  server.registerTool(
+    "stats",
+    {
+      description: "Progress per direction (due, new, learning, review, lapses, retention), reviews by source, and the hardest notes.",
+      inputSchema: z.object({ deck: short().optional(), days: z.number().int().min(1).max(3650).optional(), tz: tzSchema() }),
+      annotations: ro,
+    },
+    wrap(async ({ tz: _, ...a }) => store.stats(a)),
+  );
+
+  server.registerTool(
+    "note_history",
+    {
+      description: "A note with its cards and full review history per direction.",
+      inputSchema: z.object({ note_id: z.string(), tz: tzSchema() }),
+      annotations: ro,
+    },
+    wrap(async (a) => store.noteHistory(a.note_id)),
+  );
+
+  return server;
+}

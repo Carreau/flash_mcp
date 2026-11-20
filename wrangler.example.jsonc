@@ -1,0 +1,35 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "flash-mcp",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-11-01",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "flash-mcp",
+			// From `wrangler d1 create flash-mcp`.
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "migrations"
+		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "OAUTH_KV",
+			// From `wrangler kv namespace create OAUTH_KV`.
+			"id": "00000000000000000000000000000000"
+		}
+	],
+	"vars": {
+		// Exact URL clients connect to; tokens are bound to it.
+		"MCP_RESOURCE": "https://flash-mcp.<your-subdomain>.workers.dev/mcp"
+	},
+	"workers_dev": true,
+	"preview_urls": false,
+	"observability": {
+		"enabled": true
+	}
+}

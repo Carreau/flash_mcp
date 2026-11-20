@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="color-scheme" content="light dark">
+<title>flash</title>
+<style>
+:root {
+  --bg: #f6f5f2; --fg: #1d1d1f; --muted: #6b6b72; --card: #ffffff; --line: #e2e0da; --soft: #efede8;
+  --accent: #2f63c9; --accent-fg: #fff; --ok: #1d7f47; --warn: #a86a12; --bad: #c0392b;
+  --ok-bg: #e6f4ec; --warn-bg: #fbf0dc; --bad-bg: #fbe7e4; --new-bg: #e5edfb;
+  --radius: 10px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ja: system-ui, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141416; --fg: #ececef; --muted: #9a9aa3; --card: #1d1d21; --line: #2f2f36; --soft: #26262c;
+    --accent: #7aa5ff; --accent-fg: #0d1526; --ok: #5cc98d; --warn: #e4ac52; --bad: #f07a6e;
+    --ok-bg: #173325; --warn-bg: #3a2c12; --bad-bg: #3d1b18; --new-bg: #1c2a47;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 var(--font); }
+[lang="ja"] { font-family: var(--ja); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button, input, select, textarea { font: inherit; color: inherit; }
+input, select, textarea {
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0;
+}
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button {
+  background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer;
+}
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+button.danger { color: var(--bad); }
+button.link { background: none; border: none; padding: 4px 6px; color: var(--muted); }
+.muted { color: var(--muted); }
+.small { font-size: .85rem; }
+
+header.top {
+  position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 12px;
+}
+.brand { font-weight: 700; letter-spacing: .02em; }
+nav.tabs { display: flex; gap: 2px; }
+nav.tabs a { padding: 6px 10px; border-radius: 8px; color: var(--muted); }
+nav.tabs a.on { background: var(--soft); color: var(--fg); font-weight: 600; text-decoration: none; }
+.top .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.top select { padding: 5px 8px; max-width: 42vw; }
+#email { max-width: 28vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 520px) { #email { display: none; } }
+
+main { max-width: 860px; margin: 0 auto; padding: 12px; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+.stack > * + * { margin-top: 12px; }
+h2 { font-size: 1.05rem; margin: 18px 0 8px; }
+
+/* Review */
+.rv-bar { display: flex; justify-content: space-between; font-size: .85rem; color: var(--muted); margin-bottom: 8px; }
+.rv-meta { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); }
+.badge { font-size: .72rem; padding: 1px 7px; border-radius: 99px; background: var(--new-bg); color: var(--accent); font-weight: 600; }
+.prompt { text-align: center; margin: 10px 0 14px; overflow-wrap: anywhere; white-space: pre-wrap; font-weight: 500; }
+.prompt.xl { font-size: clamp(3rem, 16vw, 5rem); line-height: 1.15; }
+.prompt.l { font-size: clamp(2rem, 9vw, 3rem); line-height: 1.2; }
+.prompt.m { font-size: 1.6rem; }
+.prompt.s { font-size: 1.2rem; text-align: left; }
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.field label { font-size: .8rem; color: var(--muted); }
+.field input { font-size: 1.25rem; padding: 10px 12px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.actions .primary { flex: 1; }
+.result { border-top: 1px solid var(--line); padding: 10px 0; }
+.result .head { display: flex; align-items: baseline; gap: 8px; }
+.mark { font-weight: 700; width: 1.2em; text-align: center; }
+.r-ok .mark { color: var(--ok); } .r-close .mark { color: var(--warn); } .r-bad .mark { color: var(--bad); }
+.yours { font-size: 1.1rem; }
+.r-bad .yours { text-decoration: line-through; color: var(--bad); }
+.r-close .yours { color: var(--warn); }
+.expected { font-size: 1.15rem; margin: 2px 0 8px 1.9em; }
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: none; border-radius: 0; background: var(--card); padding: 9px 2px; font-size: .9rem; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on[data-r="again"] { background: var(--bad-bg); color: var(--bad); font-weight: 700; }
+.seg button.on[data-r="hard"] { background: var(--warn-bg); color: var(--warn); font-weight: 700; }
+.seg button.on[data-r="good"] { background: var(--ok-bg); color: var(--ok); font-weight: 700; }
+.seg button.on[data-r="easy"] { background: var(--new-bg); color: var(--accent); font-weight: 700; }
+.fullnote { background: var(--soft); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
+.fullnote dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; margin: 0; }
+.fullnote dt { color: var(--muted); font-size: .85rem; padding-top: 2px; }
+.fullnote dd { margin: 0; overflow-wrap: anywhere; }
+.pre { white-space: pre-wrap; }
+.done { text-align: center; padding: 40px 14px; }
+.done .big { font-size: 1.6rem; font-weight: 600; margin-bottom: 6px; }
+
+/* Cards */
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.filters input[type=search] { flex: 1 1 200px; }
+.list { display: flex; flex-direction: column; gap: 6px; }
+.row { display: block; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 9px 12px; }
+.row:hover { text-decoration: none; border-color: var(--accent); }
+.row .line { display: flex; gap: 8px; align-items: baseline; overflow: hidden; white-space: nowrap; }
+.row .k { font-size: 1.2rem; font-weight: 600; }
+.row .mean { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.row .line.col { flex-direction: column; gap: 2px; }
+.row .line.col > div { overflow: hidden; text-overflow: ellipsis; }
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.chip, .tag { font-size: .75rem; padding: 1px 7px; border-radius: 99px; border: 1px solid transparent; white-space: nowrap; }
+.tag { background: var(--soft); color: var(--muted); }
+.chip.st-new { background: var(--new-bg); color: var(--accent); }
+.chip.st-learning, .chip.st-relearning { background: var(--warn-bg); color: var(--warn); }
+.chip.st-review { background: var(--ok-bg); color: var(--ok); }
+.chip.susp { background: var(--soft); color: var(--muted); text-decoration: line-through; }
+.chip.due { border-color: currentColor; font-weight: 700; }
+.more { margin: 12px auto; display: block; }
+
+/* Detail / tables */
+.form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+@media (min-width: 640px) { .form { grid-template-columns: repeat(2, minmax(0, 1fr)); } .form .wide { grid-column: 1 / -1; } }
+.form label { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; color: var(--muted); }
+.form input, .form textarea, .form select { font-size: 1rem; color: var(--fg); }
+textarea { min-height: 70px; resize: vertical; }
+.dirs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }
+.dirs label { display: flex; gap: 8px; align-items: center; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; font-size: .78rem; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+#toast {
+  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 20; max-width: calc(100% - 24px);
+  background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; box-shadow: 0 4px 18px rgba(0,0,0,.2);
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+}
+#toast.show { opacity: 1; pointer-events: auto; }
+#toast.err { background: var(--bad); color: #fff; }
+.rv-toggles { display: flex; gap: 14px; flex-wrap: wrap; font-size: .85rem; margin: 0 0 8px; opacity: .85; }
+.rv-toggles .toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.kb { display: inline-block; min-width: 1.4em; padding: 0 .3em; border: 1px solid currentColor; border-radius: 4px; font-size: .75em; text-align: center; opacity: .65; }
+.warn-note { color: var(--warn); font-size: .85rem; margin-top: 2px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="brand">flash</span>
+  <nav class="tabs">
+    <a href="#/review" data-tab="review">Review</a>
+    <a href="#/cards" data-tab="cards">Cards</a>
+    <a href="#/stats" data-tab="stats">Stats</a>
+  </nav>
+  <div class="right">
+    <select id="deck" aria-label="Deck filter"><option value="">All decks</option></select>
+    <span id="email" class="muted small"></span>
+    <button id="logout" class="link small" type="button">Log out</button>
+  </div>
+</header>
+<main id="main"></main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+"use strict";
+// ---------- helpers ----------
+const $ = (s, r = document) => r.querySelector(s);
+const main = $("#main");
+
+/** Build an element. Strings become text nodes, so API data is never parsed as HTML. */
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "value" || k === "checked" || k === "disabled") el[k] = v;
+    else el.setAttribute(k, v === true ? "" : String(v));
+  }
+  const add = (c) => {
+    if (c == null || c === false) return;
+    if (Array.isArray(c)) c.forEach(add);
+    else el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  };
+  kids.forEach(add);
+  return el;
+}
+
+let toastTimer;
+function toast(msg, isErr = true) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.className = "show" + (isErr ? " err" : "");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (t.className = ""), isErr ? 6000 : 2500);
+}
+
+function toLogin() {
+  location.href = "/login?next=" + encodeURIComponent(location.pathname + location.hash);
+}
+
+async function api(path, method = "GET", body) {
+  const init = { method, credentials: "same-origin", headers: { Accept: "application/json" } };
+  if (method !== "GET") {
+    init.headers["X-Requested-With"] = "flash";
+    init.headers["Content-Type"] = "application/json";
+    init.body = JSON.stringify(body ?? {});
+  }
+  let res;
+  try { res = await fetch(path, init); }
+  catch (e) { toast("Network error, check your connection"); throw e; }
+  if (res.status === 401) { toLogin(); throw new Error("unauthorized"); }
+  let data = null;
+  if ((res.headers.get("content-type") || "").includes("json")) data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const msg = (data && data.error) || `Request failed (${res.status})`;
+    toast(msg);
+    throw new Error(msg);
+  }
+  return data;
+}
+
+function qs(params) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== "" && v != null) p.set(k, String(v));
+  const s = p.toString();
+  return s ? "?" + s : "";
+}
+
+const JA_RE = /[぀-ヿ㐀-鿿豈-﫿ｦ-ﾟ]/;
+const isJaText = (s) => JA_RE.test(s || "");
+const JA_FACES = new Set(["kanji", "kana"]);
+const langFor = (face, text) => (JA_FACES.has(face) || isJaText(text) ? "ja" : null);
+
+const FACE_LABEL = { kana: "reading (kana)", meaning: "meaning", kanji: "kanji", back: "answer", front: "question" };
+const FACE_NOUN = { kana: "Reading", meaning: "meaning", kanji: "kanji", back: "answer", front: "question" };
+function askLabel(faces) {
+  const words = faces.map((f, i) => {
+    const w = FACE_NOUN[f] || f;
+    return i === 0 ? w[0].toUpperCase() + w.slice(1) : w.toLowerCase();
+  });
+  return words.length > 1 ? words.slice(0, -1).join(", ") + " & " + words[words.length - 1] : words[0];
+}
+
+const WORD_DIRS = ["kanji>kana", "kanji>meaning", "kana>meaning", "meaning>kana", "kana>kanji", "meaning>kanji"];
+const BASIC_DIRS = ["front>back", "back>front"];
+const DIR_SHORT = {
+  "kanji>kana": "漢→か", "kanji>meaning": "漢→意", "kana>meaning": "か→意", "meaning>kana": "意→か",
+  "kana>kanji": "か→漢", "meaning>kanji": "意→漢", "front>back": "表→裏", "back>front": "裏→表",
+};
+const DIR_NAME = {
+  "kanji>kana": "kanji → kana (reading)", "kanji>meaning": "kanji → meaning (recognition)",
+  "kana>meaning": "kana → meaning (comprehension)", "meaning>kana": "meaning → kana (production)",
+  "kana>kanji": "kana → kanji (writing)", "meaning>kanji": "meaning → kanji (writing from meaning)",
+  "front>back": "front → back", "back>front": "back → front",
+};
+const dirShort = (d) => h("span", { lang: "ja", title: DIR_NAME[d] || d }, DIR_SHORT[d] || d);
+
+function relTime(iso) {
+  const t = Date.parse(iso);
+  if (isNaN(t)) return "";
+  let s = Math.round((t - Date.now()) / 1000);
+  const past = s < 0;
+  s = Math.abs(s);
+  let out;
+  if (s < 60) out = "now";
+  else if (s < 3600) out = Math.round(s / 60) + "m";
+  else if (s < 86400) out = Math.round(s / 3600) + "h";
+  else if (s < 86400 * 60) out = Math.round(s / 86400) + "d";
+  else if (s < 86400 * 365) out = Math.round(s / (86400 * 30)) + "mo";
+  else out = (s / (86400 * 365)).toFixed(1) + "y";
+  return out === "now" ? out : past ? out + " ago" : "in " + out;
+}
+const fmtDate = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }); };
+const fmtNum = (n, digits = 1) => (n == null || isNaN(n) ? "–" : Number(n).toFixed(digits).replace(/\.0+$/, ""));
+const fmtPct = (n) => (n == null || isNaN(n) ? "–" : Math.round(n <= 1 ? n * 100 : n) + "%");
+
+// ---------- shared state ----------
+const DECK_KEY = "flash.deck";
+let decks = [];
+const curDeck = () => localStorage.getItem(DECK_KEY) || "";
+let seq = 0; // render token; stale async renders bail out
+
+async function loadTopBar() {
+  api("/api/me").then((me) => ($("#email").textContent = me?.email || "")).catch(() => {});
+  let ok = true;
+  try { decks = (await api("/api/decks")) || []; } catch { decks = []; ok = false; }
+  const sel = $("#deck");
+  const cur = curDeck();
+  sel.replaceChildren(h("option", { value: "" }, "All decks"),
+    ...decks.map((d) => h("option", { value: d.name }, `${d.name} (${d.due_reviews ?? 0} due)`)));
+  if (ok && cur && !decks.some((d) => d.name === cur)) localStorage.removeItem(DECK_KEY);
+  if (cur && !decks.some((d) => d.name === cur)) sel.append(h("option", { value: cur }, cur));
+  sel.value = curDeck();
+}
+$("#deck").addEventListener("change", (e) => {
+  if (e.target.value) localStorage.setItem(DECK_KEY, e.target.value);
+  else localStorage.removeItem(DECK_KEY);
+  route();
+});
+$("#logout").addEventListener("click", async () => {
+  try {
+    await fetch("/logout", { method: "POST", credentials: "same-origin", redirect: "manual",
+      headers: { "X-Requested-With": "flash", "Content-Type": "application/json" }, body: "{}" });
+  } catch {}
+  location.href = "/login";
+});
+
+// ---------- router ----------
+function route() {
+  const tok = ++seq;
+  const parts = (location.hash.replace(/^#\/?/, "") || "review").split("/");
+  const tab = parts[0];
+  document.querySelectorAll("nav.tabs a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
+  main.replaceChildren();
+  if (tab === "cards" && parts[1]) {
+    let id;
+    try { id = decodeURIComponent(parts[1]); } catch { location.hash = "#/cards"; return; }
+    return viewDetail(tok, id);
+  }
+  if (tab === "cards") return viewCards(tok);
+  if (tab === "stats") return viewStats(tok);
+  if (tab !== "review") {
+    history.replaceState(null, "", "#/review");
+    document.querySelectorAll("nav.tabs a").forEach((a) => a.classList.toggle("on", a.dataset.tab === "review"));
+  }
+  return viewReview(tok);
+}
+window.addEventListener("hashchange", route);
+const curTab = () => (location.hash.replace(/^#\/?/, "") || "review").split("/")[0];
+
+// ---------- Review ----------
+const R = { queue: [], loaded: false, deckKey: null, done: 0, counts: null,
+  phase: "ask", results: null, ratings: {}, answers: {}, busy: false, gen: 0,
+  // Practice: review cards that aren't due yet. Ratings are only saved if `record` is on.
+  practice: localStorage.getItem("flash.practice") === "1",
+  record: localStorage.getItem("flash.practiceRecord") === "1",
+  seen: new Set() };
+
+async function loadDue() {
+  const params = R.practice
+    ? { deck: curDeck(), limit: 100, new_limit: 100, include_not_due: "true" }
+    : { deck: curDeck(), limit: 20 };
+  const d = await api("/api/due" + qs(params));
+  let items = (d && d.items) || [];
+  // Unrecorded practice doesn't change schedules, so skip notes already practiced.
+  if (R.practice && !R.record) items = items.filter((it) => !R.seen.has(it.note_id));
+  R.queue = items;
+  R.counts = d || {};
+  R.loaded = true;
+}
+
+function practiceToggles() {
+  const reload = () => { R.loaded = false; R.seen.clear(); route(); };
+  const box = (label, checked, onchange, title) =>
+    h("label", { class: "toggle", title }, h("input", { type: "checkbox", checked: !!checked, onchange }), " " + label);
+  return h("div", { class: "rv-toggles" },
+    box("Practice (not due too)", R.practice, (e) => {
+      R.practice = e.target.checked; localStorage.setItem("flash.practice", R.practice ? "1" : "0"); reload();
+    }, "Review cards before they are due, e.g. for testing"),
+    R.practice ? box("record ratings", R.record, (e) => {
+      R.record = e.target.checked; localStorage.setItem("flash.practiceRecord", R.record ? "1" : "0"); reload();
+    }, "Off: practice answers are checked but not saved, so your schedule is untouched") : null);
+}
+
+async function viewReview(tok) {
+  if (!R.loaded || R.deckKey !== curDeck()) {
+    R.deckKey = curDeck(); R.done = 0;
+    main.append(h("p", { class: "muted" }, "Loading…"));
+    try { await loadDue(); } catch { if (tok === seq) main.replaceChildren(h("p", { class: "muted" }, "Could not load reviews.")); return; }
+    if (tok !== seq) return;
+  }
+  resetItem();
+  drawReview();
+}
+
+function resetItem() { R.gen++; R.phase = "ask"; R.results = null; R.ratings = {}; R.answers = {}; R.busy = false; }
+const curItem = () => R.queue[0];
+const curPrompt = () => curItem()?.prompts?.[0];
+
+function drawReview() {
+  if (curTab() !== "review") return;
+  const c = R.counts || {};
+  const item = curItem();
+  if (!item || !curPrompt()) {
+    main.replaceChildren(practiceToggles(), h("div", { class: "panel done" },
+      h("div", { class: "big" }, R.practice ? "Nothing left to practice" : "All done"),
+      h("p", { class: "muted" }, `${R.done} reviewed this session · ${c.due_review_cards ?? 0} due · ${c.new_cards_available ?? 0} new available`),
+      h("button", { onclick: async () => { R.loaded = false; R.seen.clear(); route(); } }, "Check again")));
+    return;
+  }
+  const p = curPrompt();
+  const shown = item.faces?.[p.show] ?? "";
+  const len = [...shown].length;
+  const size = len <= 4 ? "xl" : len <= 10 ? "l" : len <= 30 ? "m" : "s";
+  const bar = h("div", { class: "rv-bar" },
+    h("span", null, `${c.due_review_cards ?? 0} due · ${c.new_cards_available ?? 0} new`),
+    h("span", null, `${R.done} done · ${R.queue.length} left`),
+    R.practice ? h("span", { class: "badge" }, R.record ? "practice · saved" : "practice · not saved") : null);
+  const meta = h("div", { class: "rv-meta" },
+    h("span", null, askLabel(p.ask.map((a) => a.face))),
+    item.is_new ? h("span", { class: "badge" }, "new") : null,
+    h("span", { style: "margin-left:auto" }, item.deck || ""));
+  const card = h("div", { class: "panel" }, meta,
+    h("div", { class: "prompt " + size, lang: langFor(p.show, shown) }, shown),
+    R.phase === "ask" ? askForm(p) : resultView(item, p));
+  main.replaceChildren(practiceToggles(), bar, card);
+  if (R.phase === "ask") card.querySelector("input")?.focus();
+  else card.querySelector("#next")?.focus({ preventScroll: true });
+}
+
+function askForm(p) {
+  const inputs = p.ask.map((a, i) => {
+    const ja = JA_FACES.has(a.face) || (a.accept || []).some(isJaText);
+    const last = i === p.ask.length - 1;
+    const id = "ans-" + a.card_id;
+    const inp = h("input", { id, type: "text", lang: ja ? "ja" : null, autocapitalize: "off", autocomplete: "off",
+      autocorrect: "off", spellcheck: "false", enterkeyhint: last ? "done" : "next", value: R.answers[a.card_id] || "",
+      oninput: (e) => (R.answers[a.card_id] = e.target.value),
+      onkeydown: (e) => {
+        if (e.key !== "Enter" || e.isComposing || e.keyCode === 229) return; // ignore IME confirm
+        e.preventDefault();
+        if (last) doCheck(); else $("#ans-" + p.ask[i + 1].card_id)?.focus();
+      } });
+    // Browsers can't switch the keyboard for us, so say which one this box expects.
+    const kb = h("span", { class: "kb", title: ja ? "Japanese keyboard (romaji is accepted too)" : "English keyboard" }, ja ? "あ" : "A");
+    return h("div", { class: "field" }, h("label", { for: id }, FACE_LABEL[a.face] || a.face, " ", kb), inp);
+  });
+  return h("div", null, inputs, h("div", { class: "actions" },
+    h("button", { class: "primary", id: "check", onclick: doCheck }, "Check"),
+    h("button", { onclick: doFlip }, "Show answer")));
+}
+
+async function doCheck() {
+  if (R.busy) return;
+  const p = curPrompt();
+  if (!p) return;
+  const gen = R.gen;
+  R.busy = true; $("#check") && ($("#check").disabled = true);
+  try {
+    const res = await api("/api/check", "POST",
+      { answers: p.ask.map((a) => ({ card_id: a.card_id, answer: (R.answers[a.card_id] || "").trim() })) });
+    if (gen !== R.gen) return;
+    R.results = {};
+    for (const r of res || []) R.results[r.card_id] = r;
+    for (const a of p.ask) {
+      const r = R.results[a.card_id];
+      R.ratings[a.card_id] = r && r.correct ? "good" : r && r.close ? "hard" : "again";
+    }
+    R.phase = "checked";
+  } catch {} finally { if (gen === R.gen) R.busy = false; }
+  if (gen === R.gen) drawReview();
+}
+
+function doFlip() { R.results = null; R.ratings = {}; R.phase = "checked"; drawReview(); }
+
+const RATINGS = ["again", "hard", "good", "easy"];
+function resultView(item, p) {
+  const rows = p.ask.map((a) => {
+    const r = R.results?.[a.card_id];
+    const ans = (R.answers[a.card_id] || "").trim();
+    const cls = !R.results ? "" : r?.correct ? "r-ok" : r?.close ? "r-close" : "r-bad";
+    const mark = !R.results ? "·" : r?.correct ? (r?.warning ? "✓⚠" : "✓") : r?.close ? "~" : "✗";
+    const expected = (r?.expected?.length ? r.expected : a.accept) || [];
+    const lang = langFor(a.face, expected.join(" "));
+    const seg = h("div", { class: "seg", role: "group", "aria-label": "Rate " + (FACE_LABEL[a.face] || a.face) },
+      RATINGS.map((rt, i) => h("button", { type: "button", "data-r": rt, class: R.ratings[a.card_id] === rt ? "on" : null,
+        "aria-pressed": R.ratings[a.card_id] === rt ? "true" : "false",
+        title: p.ask.length === 1 ? `${rt} (${i + 1})` : rt,
+        onclick: () => { R.ratings[a.card_id] = rt; drawReview(); } }, rt[0].toUpperCase() + rt.slice(1))));
+    return h("div", { class: "result " + cls },
+      h("div", { class: "head" }, h("span", { class: "mark" }, mark),
+        h("span", { class: "muted small" }, FACE_LABEL[a.face] || a.face, r?.close && !r?.correct ? " · almost" : ""),
+        R.results ? h("span", { class: "yours", lang: ans ? lang : null }, ans || "(blank)") : null),
+      h("div", { class: "expected", lang }, expected.join(" · ")),
+      r?.warning ? h("div", { class: "warn-note" }, "⚠ " + r.warning) : null,
+      seg);
+  });
+  const ready = p.ask.every((a) => R.ratings[a.card_id]);
+  return h("div", null, rows,
+    h("div", { class: "actions", style: "margin-top:10px" },
+      h("button", { class: "primary", id: "next", disabled: !ready || R.busy, onclick: doNext }, "Next ⏎")),
+    fullNote(item));
+}
+
+function fullNote(item) {
+  const f = item.faces || {};
+  const keys = item.type === "basic" ? ["front", "back"] : ["kanji", "kana", "meaning"];
+  const dl = h("dl", null, keys.filter((k) => f[k]).map((k) =>
+    [h("dt", null, k), h("dd", { lang: langFor(k, f[k]), class: "pre" }, f[k])]));
+  if (item.notes) dl.append(h("dt", null, "notes"), h("dd", { class: "pre" }, item.notes));
+  return h("div", { class: "fullnote" }, dl,
+    h("div", { class: "small", style: "margin-top:6px;text-align:right" },
+      h("a", { href: "#/cards/" + encodeURIComponent(item.note_id) }, "Edit note")));
+}
+
+async function doNext() {
+  const p = curPrompt();
+  if (R.busy || !p || !p.ask.every((a) => R.ratings[a.card_id])) return;
+  const item = curItem(), gen = R.gen;
+  R.busy = true; $("#next") && ($("#next").disabled = true);
+  try {
+    if (!R.practice || R.record) await api("/api/rate", "POST", { reviews: p.ask.map((a) => {
+      const ans = (R.answers[a.card_id] || "").trim();
+      return ans && R.phase === "checked" && R.results
+        ? { card_id: a.card_id, rating: R.ratings[a.card_id], answer: ans }
+        : { card_id: a.card_id, rating: R.ratings[a.card_id] };
+    }) });
+  } catch { if (gen === R.gen) { R.busy = false; drawReview(); } return; }
+  if (R.queue[0] === item) R.queue.shift();
+  R.seen.add(item.note_id);
+  R.done++;
+  if (!R.queue.length) { try { await loadDue(); } catch {} }
+  resetItem();
+  drawReview();
+}
+
+document.addEventListener("keydown", (e) => {
+  if (curTab() !== "review" || R.phase !== "checked" || e.repeat || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+  const p = curPrompt();
+  if (!p || (e.target.closest && e.target.closest("header"))) return;
+  if (e.key === "Enter" && e.target.tagName !== "A") { e.preventDefault(); doNext(); }
+  else if (p.ask.length === 1 && /^[1-4]$/.test(e.key) && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) {
+    R.ratings[p.ask[0].card_id] = RATINGS[+e.key - 1]; drawReview();
+  }
+});
+
+// ---------- Cards ----------
+const C = { query: "", type: "", tag: "" };
+let tagsCache = null;
+
+function chip(card) {
+  const due = card.is_due && !card.suspended;
+  const when = card.suspended ? "suspended" : due ? "due" : relTime(card.due).replace(/^in /, "");
+  const title = `${DIR_NAME[card.direction] || card.direction}\n${card.state}${card.suspended ? " (suspended)" : ""}` +
+    `\ndue ${fmtDate(card.due)}\nreps ${card.reps ?? 0} · lapses ${card.lapses ?? 0}` +
+    (card.stability_days != null ? `\nstability ${fmtNum(card.stability_days)}d` : "") +
+    (card.recall_now != null ? ` · recall ${fmtPct(card.recall_now)}` : "");
+  return h("span", { class: `chip st-${card.state}${card.suspended ? " susp" : ""}${due ? " due" : ""}`, title },
+    h("span", { lang: "ja" }, DIR_SHORT[card.direction] || card.direction), ` ${card.state} · ${when}`);
+}
+
+function noteRow(n) {
+  const line = n.type === "basic"
+    ? h("div", { class: "line col" }, h("div", { lang: langFor("front", n.front) }, n.front || ""),
+        h("div", { class: "mean", lang: langFor("back", n.back) }, "→ " + (n.back || "")))
+    : h("div", { class: "line" }, n.kanji ? h("span", { class: "k", lang: "ja" }, n.kanji) : null,
+        h("span", { lang: "ja", class: n.kanji ? null : "k" }, n.kana || ""), h("span", { class: "mean" }, n.meaning || ""));
+  return h("a", { class: "row", href: "#/cards/" + encodeURIComponent(n.note_id) }, line,
+    h("div", { class: "chips" }, (n.tags || []).map((t) => h("span", { class: "tag" }, "#" + t)),
+      (n.cards || []).map(chip)));
+}
+
+async function viewCards(tok) {
+  const list = h("div", { class: "list" });
+  const more = h("button", { class: "more", hidden: true }, "Load more");
+  const status = h("p", { class: "muted small" });
+  let offset = 0, timer;
+  const tagSel = h("select", { "aria-label": "Tag", onchange: (e) => { C.tag = e.target.value; reload(); } },
+    h("option", { value: "" }, "All tags"));
+  const search = h("input", { type: "search", placeholder: "Search kanji, kana, meaning…", value: C.query, lang: "ja",
+    autocomplete: "off", oninput: (e) => { clearTimeout(timer); timer = setTimeout(() => { C.query = e.target.value.trim(); reload(); }, 300); } });
+  const typeSel = h("select", { "aria-label": "Type", onchange: (e) => { C.type = e.target.value; reload(); } },
+    h("option", { value: "" }, "All types"), h("option", { value: "word" }, "Words"), h("option", { value: "basic" }, "Basic"));
+  typeSel.value = C.type;
+  main.append(h("div", { class: "filters" }, search, typeSel, tagSel), status, list, more);
+
+  (tagsCache ? Promise.resolve(tagsCache) : api("/api/tags")).then((tags) => {
+    tagsCache = tags || [];
+    tagSel.append(...tagsCache.map((t) => h("option", { value: t.tag }, `${t.tag} (${t.notes})`)));
+    tagSel.value = C.tag;
+  }).catch(() => {});
+
+  async function load() {
+    const myTok = seq;
+    more.disabled = true;
+    let notes;
+    try { notes = (await api("/api/notes" + qs({ query: C.query, deck: curDeck(), tag: C.tag, type: C.type, limit: 50, offset }))) || []; }
+    catch { more.disabled = false; return; }
+    if (myTok !== seq || tok !== seq) return;
+    list.append(...notes.map(noteRow));
+    offset += notes.length;
+    more.hidden = notes.length < 50; more.disabled = false;
+    status.textContent = offset ? `${offset} note${offset === 1 ? "" : "s"}${notes.length < 50 ? "" : "+"}` : "No notes match.";
+  }
+  function reload() { ++seq; tok = seq; offset = 0; list.replaceChildren(); load(); }
+  more.onclick = load;
+  load();
+}
+
+// ---------- Note detail ----------
+async function viewDetail(tok, id) {
+  main.append(h("p", { class: "muted" }, "Loading…"));
+  let note;
+  try { note = await api("/api/notes/" + encodeURIComponent(id)); } catch { if (tok === seq) main.replaceChildren(h("p", null, h("a", { href: "#/cards" }, "← Back to cards"))); return; }
+  if (tok !== seq) return;
+  drawDetail(note);
+}
+
+function drawDetail(note) {
+  const isWord = note.type !== "basic";
+  const fields = {};
+  const inp = (name, label, opts = {}) => {
+    const el = opts.area
+      ? h("textarea", { name, lang: opts.lang, value: note[name] ?? "" })
+      : h("input", { name, type: "text", lang: opts.lang, autocomplete: "off", spellcheck: opts.lang === "ja" ? "false" : null, value: note[name] ?? "" });
+    fields[name] = el;
+    return h("label", { class: opts.wide ? "wide" : null }, label, el);
+  };
+  const deckSel = h("select", { name: "deck" }, ...decks.map((d) => h("option", { value: d.name }, d.name)));
+  if (note.deck && !decks.some((d) => d.name === note.deck)) deckSel.append(h("option", { value: note.deck }, note.deck));
+  deckSel.value = note.deck || "";
+  const faceInputs = isWord
+    ? [inp("kanji", "Kanji", { lang: "ja" }), inp("kana", "Kana", { lang: "ja" }), inp("meaning", "Meaning", { wide: true })]
+    : [inp("front", "Front", { area: true, wide: true, lang: langFor("front", note.front) }), inp("back", "Back", { area: true, wide: true, lang: langFor("back", note.back) })];
+  const tagsIn = h("input", { type: "text", autocomplete: "off", value: (note.tags || []).join(", ") });
+  const saveBtn = h("button", { class: "primary", type: "submit" }, "Save");
+  const form = h("form", { class: "form panel", onsubmit: async (e) => {
+    e.preventDefault();
+    const body = { deck: deckSel.value, tags: tagsIn.value.split(",").map((t) => t.trim()).filter(Boolean) };
+    for (const [k, el] of Object.entries(fields)) body[k] = el.value.trim();
+    saveBtn.disabled = true;
+    try { const upd = await api("/api/notes/" + encodeURIComponent(note.note_id), "PATCH", body); tagsCache = null; toast("Saved", false); drawDetail({ ...note, ...upd, history: note.history }); }
+    catch { saveBtn.disabled = false; }
+  } }, faceInputs, inp("notes", "Notes", { area: true, wide: true }),
+    h("label", null, "Tags (comma-separated)", tagsIn), h("label", null, "Deck", deckSel),
+    h("div", { class: "wide actions" }, saveBtn));
+
+  const has = (f) => typeof note[f] === "string" && note[f].trim() !== "";
+  const dirs = h("div", { class: "dirs panel" }, (isWord ? WORD_DIRS : BASIC_DIRS).map((d) => {
+    const [from, to] = d.split(">");
+    const missing = [from, to].filter((f) => !has(f));
+    const cb = h("input", { type: "checkbox", checked: (note.enabled_directions || []).includes(d), onchange: async (e) => {
+      e.target.disabled = true;
+      try {
+        const upd = await api(`/api/notes/${encodeURIComponent(note.note_id)}/directions`, "POST", e.target.checked ? { enable: [d] } : { disable: [d] });
+        drawDetail({ ...note, ...upd, history: note.history });
+      } catch { e.target.checked = !e.target.checked; e.target.disabled = false; }
+    } });
+    return h("label", { title: DIR_NAME[d] }, cb, h("span", { lang: "ja" }, DIR_SHORT[d]), h("span", { class: "small" }, DIR_NAME[d]),
+      missing.length ? h("span", { class: "muted small" }, `(needs ${missing.join(", ")})`) : null);
+  }));
+
+  const sched = table(["Direction", "State", "Due", "Reps", "Lapses", "Stability", "Recall"],
+    (note.cards || []).map((c) => [dirShort(c.direction), c.state + (c.suspended ? " (suspended)" : ""),
+      h("span", { title: fmtDate(c.due) }, c.is_due && !c.suspended ? "due now" : relTime(c.due)),
+      c.reps ?? 0, c.lapses ?? 0, c.stability_days != null ? fmtNum(c.stability_days) + "d" : "–", fmtPct(c.recall_now)]), [3, 4, 5, 6]);
+  const hist = [...(note.history || [])].sort((a, b) => String(b.reviewed_at).localeCompare(String(a.reviewed_at)));
+  const histT = hist.length
+    ? table(["When", "Direction", "Rating", "Source", "Answer"], hist.map((r) => [h("span", { title: fmtDate(r.reviewed_at) }, relTime(r.reviewed_at)),
+        dirShort(r.direction), typeof r.rating === "number" ? RATINGS[r.rating - 1] || r.rating : r.rating, r.source || "", h("span", { lang: isJaText(r.answer) ? "ja" : null }, r.answer || "")]))
+    : h("p", { class: "muted small" }, "No reviews yet.");
+
+  main.replaceChildren(
+    h("div", { class: "actions", style: "justify-content:space-between;align-items:center" },
+      h("a", { href: "#/cards" }, "← Cards"),
+      h("button", { class: "danger", onclick: async () => {
+        if (!confirm("Delete this note and all its cards and history?")) return;
+        try { await api("/api/notes/" + encodeURIComponent(note.note_id), "DELETE"); toast("Deleted", false); location.hash = "#/cards"; } catch {}
+      } }, "Delete")),
+    h("h2", null, isWord ? "Word" : "Basic note"), form,
+    h("h2", null, "Directions"), dirs,
+    h("h2", null, "Schedule"), sched,
+    h("h2", null, "History"), histT);
+}
+
+function table(headers, rows, numCols = []) {
+  return h("div", { class: "tablewrap panel", style: "padding:4px" }, h("table", null,
+    h("thead", null, h("tr", null, headers.map((t, i) => h("th", { class: numCols.includes(i) ? "num" : null }, t)))),
+    h("tbody", null, rows.map((r) => h("tr", null, r.map((c, i) => h("td", { class: numCols.includes(i) ? "num" : null }, c)))))));
+}
+
+// ---------- Stats ----------
+async function viewStats(tok) {
+  main.append(h("p", { class: "muted" }, "Loading…"));
+  let s;
+  try { s = await api("/api/stats" + qs({ deck: curDeck() })); }
+  catch { if (tok === seq) main.replaceChildren(h("p", { class: "muted" }, "Could not load stats.")); return; }
+  if (tok !== seq) return;
+  const by = s.by_direction || [];
+  const dirT = table(["Direction", "Cards", "New", "Learning", "Review", "Due", "Lapses", "Avg stab.", "Reviews", "Retention"],
+    by.map((d) => [h("span", null, dirShort(d.direction), " ", h("span", { class: "muted small" }, DIR_NAME[d.direction] || "")),
+      d.cards, d.new, d.learning, d.review, d.due_reviews, d.lapses,
+      d.avg_stability_days != null ? fmtNum(d.avg_stability_days) + "d" : "–", d.reviews_in_window ?? 0, fmtPct(d.retention_in_window)]),
+    [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+  // reviews_by_source: accept either {source: count} or [{source, reviews|count}]
+  const src = s.reviews_by_source || {};
+  const srcRows = Array.isArray(src)
+    ? src.map((r) => [r.source ?? "", r.reviews ?? r.count ?? r.n ?? ""])
+    : Object.entries(src).map(([k, v]) => [k, typeof v === "object" && v ? (v.reviews ?? v.count ?? JSON.stringify(v)) : v]);
+
+  const hard = (s.hardest_notes || []).map((n) => {
+    const label = n.kanji || n.kana || n.front || n.note_id;
+    const per = n.by_direction;
+    const perList = typeof per === "string"
+      ? per.split(",").filter(Boolean).map((x) => { const i = x.lastIndexOf(":"); return [x.slice(0, i), Number(x.slice(i + 1))]; })
+      : Array.isArray(per)
+      ? per.map((x) => [x.direction, x.lapses])
+      : per && typeof per === "object" ? Object.entries(per).map(([d, v]) => [d, typeof v === "object" && v ? v.lapses : v]) : [];
+    return [h("a", { href: "#/cards/" + encodeURIComponent(n.note_id), lang: langFor("kanji", label) }, label),
+      h("span", { lang: "ja" }, n.kanji ? n.kana || "" : ""), h("span", { class: "muted" }, n.meaning || ""),
+      n.lapses ?? 0, h("span", { class: "chips", style: "margin:0" }, perList.filter(([, v]) => v).map(([d, v]) =>
+        h("span", { class: "tag", title: DIR_NAME[d] || d }, h("span", { lang: "ja" }, DIR_SHORT[d] || d), " " + v)))];
+  });
+
+  main.replaceChildren(
+    h("h2", { style: "margin-top:4px" }, "By direction", curDeck() ? h("span", { class: "muted small" }, " · " + curDeck()) : null),
+    by.length ? dirT : h("p", { class: "muted" }, "No cards yet."),
+    h("h2", null, "Reviews by source"),
+    srcRows.length ? table(["Source", "Reviews"], srcRows, [1]) : h("p", { class: "muted small" }, "No reviews yet."),
+    h("h2", null, "Hardest notes"),
+    hard.length ? table(["Note", "Reading", "Meaning", "Lapses", "By direction"], hard, [3]) : h("p", { class: "muted small" }, "Nothing hard yet."));
+}
+
+// ---------- boot ----------
+loadTopBar().finally(() => { if (!location.hash) history.replaceState(null, "", "#/review"); route(); });
+</script>
+</body>
+</html>
