@@ -4,35 +4,42 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141416" media="(prefers-color-scheme: dark)">
 <title>flash</title>
 <style>
 :root {
-  --bg: #f6f5f2; --fg: #1d1d1f; --muted: #6b6b72; --card: #ffffff; --line: #e2e0da; --soft: #efede8;
-  --accent: #2f63c9; --accent-fg: #fff; --ok: #1d7f47; --warn: #a86a12; --bad: #c0392b;
+  --bg: #f6f5f2; --fg: #1d1d1f; --muted: #66666d; --card: #ffffff; --line: #e2e0da; --soft: #efede8;
+  --accent: #2f63c9; --accent-fg: #fff; --ok: #1d7f47; --warn: #8f5a0c; --bad: #c0392b;
   --ok-bg: #e6f4ec; --warn-bg: #fbf0dc; --bad-bg: #fbe7e4; --new-bg: #e5edfb;
-  --radius: 10px;
+  --radius: 12px; --pad: 16px; --tap: 44px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --ja: system-ui, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #141416; --fg: #ececef; --muted: #9a9aa3; --card: #1d1d21; --line: #2f2f36; --soft: #26262c;
+    --bg: #141416; --fg: #ececef; --muted: #a0a0a9; --card: #1d1d21; --line: #34343c; --soft: #29292f;
     --accent: #7aa5ff; --accent-fg: #0d1526; --ok: #5cc98d; --warn: #e4ac52; --bad: #f07a6e;
     --ok-bg: #173325; --warn-bg: #3a2c12; --bad-bg: #3d1b18; --new-bg: #1c2a47;
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html, body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 var(--font); }
-[lang="ja"] { font-family: var(--ja); }
+[lang="ja"] { font-family: var(--ja); line-break: strict; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 button, input, select, textarea { font: inherit; color: inherit; }
 input, select, textarea {
-  background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; min-width: 0;
+  min-height: var(--tap);
 }
-input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input[type=checkbox] { min-height: 0; padding: 0; accent-color: var(--accent); }
+input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 button {
-  background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer;
+  background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: 9px 16px; cursor: pointer;
+  min-height: var(--tap); touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
 button:disabled { opacity: .5; cursor: default; }
 button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
@@ -40,133 +47,218 @@ button.danger { color: var(--bad); }
 button.link { background: none; border: none; padding: 4px 6px; color: var(--muted); }
 .muted { color: var(--muted); }
 .small { font-size: .85rem; }
+/* Small text links keep their look but get a 44px touch area. */
+.hit { position: relative; }
+.hit::after { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: var(--tap); min-width: var(--tap); transform: translateY(-50%); }
 
 header.top {
   position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line);
-  display: flex; align-items: center; gap: 4px; padding: 6px 8px; padding-top: max(6px, env(safe-area-inset-top));
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
+  padding-top: max(4px, env(safe-area-inset-top));
 }
-.brand { font-weight: 700; letter-spacing: .02em; padding: 0 6px; }
+.brand { font-weight: 700; letter-spacing: .02em; padding: 0 8px; }
 nav.tabs { display: flex; gap: 2px; flex: 1; min-width: 0; }
-nav.tabs a { padding: 8px 10px; border-radius: 8px; color: var(--muted); white-space: nowrap; }
-nav.tabs a.on { background: var(--soft); color: var(--fg); font-weight: 600; text-decoration: none; }
-.gear { font-size: 1.15rem; line-height: 1; padding: 8px 10px; border-radius: 8px; color: var(--muted); }
-.gear.on { background: var(--soft); color: var(--fg); text-decoration: none; }
-@media (max-width: 400px) { .brand { display: none; } nav.tabs a { padding: 8px 8px; } }
+nav.tabs a, .gear { display: flex; align-items: center; justify-content: center; min-height: var(--tap); border-radius: 10px; color: var(--muted); white-space: nowrap; }
+nav.tabs a { padding: 0 14px; }
+nav.tabs a.on, .gear.on { background: var(--soft); color: var(--fg); font-weight: 600; text-decoration: none; }
+.gear { font-size: 1.25rem; line-height: 1; min-width: var(--tap); }
+@media (max-width: 400px) { .brand { display: none; } }
 
-main { max-width: 860px; margin: 0 auto; padding: 12px 12px max(24px, env(safe-area-inset-bottom)); }
-.panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+main {
+  max-width: 860px; margin: 0 auto;
+  padding: 12px max(14px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+}
+main:has(> .rv-bar) { max-width: 640px; } /* review reads better as a narrow column on desktop */
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--pad); }
 .stack > * + * { margin-top: 12px; }
-h2 { font-size: 1.05rem; margin: 18px 0 8px; }
+h2 { font-size: 1.05rem; margin: 24px 2px 10px; }
+h2:first-child { margin-top: 6px; }
 
 /* Review */
-.rv-bar { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: .82rem; color: var(--muted); margin-bottom: 8px; align-items: center; }
+.rv-bar { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: .85rem; color: var(--muted); margin: 2px 2px 10px; align-items: center; }
 .rv-bar .deckname { margin-left: auto; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45vw; }
-.banner { display: block; background: var(--new-bg); color: var(--accent); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: .9rem; font-weight: 600; }
+.rv-bar .deckname { padding: 12px 0 12px 12px; margin: -12px 0 -12px auto; }
+.rv-bar .deckname::after { content: " ▾"; color: var(--muted); }
+.banner { display: flex; align-items: center; min-height: var(--tap); background: var(--new-bg); color: var(--accent); border-radius: 10px; padding: 8px 14px; margin: 0 0 10px; font-size: .92rem; font-weight: 600; }
 .banner:hover { text-decoration: none; }
-.furi-toggle { font-size: .8rem; padding: 3px 8px; }
+.furi-toggle { font-size: .8rem; padding: 4px 10px; min-height: 30px; border-radius: 99px; }
 .furi-toggle.on { background: var(--new-bg); color: var(--accent); border-color: var(--accent); }
-rt { font-size: .5em; font-weight: 400; color: var(--muted); }
-.prompt rt { font-size: .4em; }
-.later { width: 100%; margin-top: 6px; }
-.later.on { background: var(--new-bg); color: var(--accent); border-color: var(--accent); font-weight: 700; }
-.later.big { padding: 11px; font-weight: 600; border-color: var(--accent); color: var(--accent); }
-.later.big.on { background: var(--accent); color: var(--accent-fg); }
-.trap { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
-.teacher { background: var(--new-bg); border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
-.teacher .who { font-size: .78rem; color: var(--accent); font-weight: 700; }
-.also { font-size: .85rem; color: var(--muted); margin: -4px 0 8px 1.9em; }
-.rv-meta { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); }
-.badge { font-size: .72rem; padding: 1px 7px; border-radius: 99px; background: var(--new-bg); color: var(--accent); font-weight: 600; }
-.prompt { text-align: center; margin: 10px 0 14px; overflow-wrap: anywhere; white-space: pre-wrap; font-weight: 500; }
-.prompt.xl { font-size: clamp(3rem, 16vw, 5rem); line-height: 1.15; }
-.prompt.l { font-size: clamp(2rem, 9vw, 3rem); line-height: 1.2; }
-.prompt.m { font-size: 1.6rem; }
+rt { font-size: max(.5em, .66rem); font-weight: 400; color: var(--muted); }
+.prompt rt { font-size: max(.4em, .75rem); }
+.rv-meta { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); min-height: 30px; }
+.rv-meta .push { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-meta a.push { overflow: visible; }
+.badge { font-size: .72rem; padding: 1px 8px; border-radius: 99px; background: var(--new-bg); color: var(--accent); font-weight: 600; white-space: nowrap; }
+.prompt { text-align: center; margin: 16px 0 22px; overflow-wrap: anywhere; white-space: pre-wrap; font-weight: 500; }
+.prompt.xl { font-size: clamp(3.2rem, 18vw, 5.5rem); line-height: 1.15; margin: 10px 0 18px; }
+.prompt.l { font-size: clamp(2rem, 9vw, 3rem); line-height: 1.25; }
+.prompt.m { font-size: 1.6rem; line-height: 1.35; }
 .prompt.s { font-size: 1.2rem; text-align: left; }
-.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
-.field label { font-size: .8rem; color: var(--muted); }
-.field input { font-size: 1.25rem; padding: 10px 12px; }
-.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.prompt:has(ruby) { line-height: 1.7; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field label { font-size: .85rem; color: var(--muted); }
+.field input { font-size: 1.25rem; padding: 11px 14px; min-height: 52px; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .actions .primary { flex: 1; }
-.result { border-top: 1px solid var(--line); padding: 10px 0; }
+.ask-actions button { min-height: 50px; white-space: nowrap; }
+.ask-actions .flip { flex: 0 0 auto; }
+
+.result { border-top: 1px solid var(--line); padding: 14px 0 12px; }
 .result .head { display: flex; align-items: baseline; gap: 8px; }
-.mark { font-weight: 700; width: 1.2em; text-align: center; }
+.mark { font-weight: 700; min-width: 20px; text-align: center; white-space: nowrap; }
 .r-ok .mark { color: var(--ok); } .r-close .mark { color: var(--warn); } .r-bad .mark { color: var(--bad); }
-.yours { font-size: 1.1rem; }
-.r-bad .yours { text-decoration: line-through; color: var(--bad); }
+.yours, .expected, .also, .warn-note { margin-left: 28px; overflow-wrap: anywhere; }
+.yours .lead { font-size: .75rem; color: var(--muted); margin-right: 6px; }
+.yours { font-size: 1.05rem; margin-top: 2px; }
+.yours.blank { color: var(--muted); }
+.r-bad .yours { color: var(--bad); }
 .r-close .yours { color: var(--warn); }
-.expected { font-size: 1.15rem; margin: 2px 0 8px 1.9em; }
-.seg { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.seg button { border: none; border-radius: 0; background: var(--card); padding: 9px 2px; font-size: .9rem; }
+.expected { font-size: 1.3rem; font-weight: 500; line-height: 1.4; margin-top: 2px; }
+.expected:has(ruby) { line-height: 1.8; }
+.also { font-size: .85rem; color: var(--muted); margin-top: 2px; }
+.warn-note { color: var(--warn); font-size: .85rem; margin-top: 4px; }
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 12px; }
+.seg button { border: none; border-radius: 0; background: var(--card); padding: 4px 2px; min-height: 48px; font-size: .95rem; }
 .seg button + button { border-left: 1px solid var(--line); }
-.seg button.on[data-r="again"] { background: var(--bad-bg); color: var(--bad); font-weight: 700; }
-.seg button.on[data-r="hard"] { background: var(--warn-bg); color: var(--warn); font-weight: 700; }
-.seg button.on[data-r="good"] { background: var(--ok-bg); color: var(--ok); font-weight: 700; }
-.seg button.on[data-r="easy"] { background: var(--new-bg); color: var(--accent); font-weight: 700; }
-.fullnote { background: var(--soft); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
-.fullnote dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; margin: 0; }
+.seg button:focus-visible { outline-offset: -3px; }
+.seg button.on { font-weight: 700; }
+.seg button.on[data-r="again"] { background: var(--bad-bg); color: var(--bad); }
+.seg button.on[data-r="hard"] { background: var(--warn-bg); color: var(--warn); }
+.seg button.on[data-r="good"] { background: var(--ok-bg); color: var(--ok); }
+.seg button.on[data-r="easy"] { background: var(--new-bg); color: var(--accent); }
+/* Grade later: quiet text button on word faces, a full outlined button on free answers. Never solid: only Next is. */
+.later { display: block; margin: 2px 0 -8px auto; background: none; border-color: transparent; color: var(--muted); font-size: .85rem; padding: 4px 4px; }
+.later.on, .later.big { color: var(--accent); }
+.later.on { font-weight: 700; }
+.later.on::before { content: "✓ "; }
+.later.big { width: 100%; margin: 8px 0 0; min-height: 48px; font-size: 1rem; font-weight: 600; border-color: var(--accent); }
+.later.big.on { background: var(--new-bg); }
+.trap, .teacher { border-radius: 10px; padding: 10px 14px; margin-top: 12px; overflow-wrap: anywhere; }
+.trap { background: var(--warn-bg); color: var(--warn); }
+.teacher { background: var(--new-bg); }
+.teacher .who { font-size: .78rem; color: var(--accent); font-weight: 700; margin-bottom: 2px; }
+.fullnote { background: var(--soft); border-radius: 10px; padding: 10px 14px; margin-top: 12px; }
+.fullnote dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; margin: 0; }
 .fullnote dt { color: var(--muted); font-size: .85rem; padding-top: 2px; }
 .fullnote dd { margin: 0; overflow-wrap: anywhere; }
+.fullnote dd:has(ruby) { line-height: 1.8; }
+.editlink { font-size: .85rem; text-align: right; margin-top: 12px; }
+.fullnote + .editlink { margin-top: 10px; }
+/* Next stays reachable however long the result is. */
+.nextbar {
+  position: sticky; bottom: 0; z-index: 2; background: var(--card); border-top: 1px solid var(--line);
+  margin: 14px calc(-1 * var(--pad)) calc(-1 * var(--pad)); padding: 10px var(--pad) max(10px, env(safe-area-inset-bottom));
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.nextbar .primary { width: 100%; min-height: 50px; }
+@media (hover: none) { .key-hint { display: none; } }
 .pre { white-space: pre-wrap; }
 .done { text-align: center; padding: 40px 14px; }
 .done .big { font-size: 1.6rem; font-weight: 600; margin-bottom: 6px; }
 
 /* Cards */
 .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-.filters input[type=search] { flex: 1 1 200px; }
-.list { display: flex; flex-direction: column; gap: 6px; }
-.row { display: block; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 9px 12px; }
+.filters input[type=search] { flex: 1 1 100%; }
+.filters select { flex: 1 1 0; }
+@media (min-width: 640px) { .filters input[type=search] { flex: 1 1 240px; } .filters select { flex: 0 1 auto; } }
+.list { display: flex; flex-direction: column; gap: 8px; }
+.row { display: block; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
 .row:hover { text-decoration: none; border-color: var(--accent); }
-.row .line { display: flex; gap: 8px; align-items: baseline; overflow: hidden; white-space: nowrap; }
-.row .k { font-size: 1.2rem; font-weight: 600; }
+.row .line { display: flex; gap: 10px; align-items: baseline; overflow: hidden; white-space: nowrap; }
+.row .k { font-size: 1.25rem; font-weight: 600; }
 .row .mean { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
-.row .line.col { flex-direction: column; gap: 2px; }
+.row .line.col { flex-direction: column; align-items: stretch; gap: 2px; }
 .row .line.col > div { overflow: hidden; text-overflow: ellipsis; }
 .trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.chip, .tag { font-size: .75rem; padding: 1px 7px; border-radius: 99px; border: 1px solid transparent; white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip, .tag { font-size: .75rem; padding: 2px 8px; border-radius: 99px; border: 1px solid transparent; white-space: nowrap; }
 .tag { background: var(--soft); color: var(--muted); }
 .chip.st-new { background: var(--new-bg); color: var(--accent); }
 .chip.st-learning, .chip.st-relearning { background: var(--warn-bg); color: var(--warn); }
 .chip.st-review { background: var(--ok-bg); color: var(--ok); }
 .chip.susp { background: var(--soft); color: var(--muted); text-decoration: line-through; }
 .chip.due { border-color: currentColor; font-weight: 700; }
-.more { margin: 12px auto; display: block; }
+.more { margin: 14px auto; display: block; }
 
 /* Detail / tables */
-.form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.detail-top { display: flex; justify-content: space-between; align-items: center; }
+.detail-top a { display: inline-flex; align-items: center; min-height: var(--tap); padding-right: 12px; }
+.form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 @media (min-width: 640px) { .form { grid-template-columns: repeat(2, minmax(0, 1fr)); } .form .wide { grid-column: 1 / -1; } }
-.form label { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; color: var(--muted); }
+.form label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; color: var(--muted); }
 .form input, .form textarea, .form select { font-size: 1rem; color: var(--fg); }
-textarea { min-height: 70px; resize: vertical; }
-.dirs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }
-.dirs label { display: flex; gap: 8px; align-items: center; }
-.tablewrap { overflow-x: auto; }
+.form input[lang="ja"] { font-size: 1.15rem; }
+.form .actions button { min-height: 48px; }
+textarea { min-height: 76px; resize: vertical; }
+.dirs { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0 12px; padding-top: 6px; padding-bottom: 6px; }
+.dirs label { display: grid; grid-template-columns: 22px 3.4em minmax(0, 1fr); gap: 10px; align-items: center; min-height: var(--tap); }
+.dirs input[type=checkbox] { width: 22px; height: 22px; margin: 0; }
+.dirs label > span:first-of-type { white-space: nowrap; }
+.dirs .needs { display: block; }
+.tablewrap { overflow-x: auto; padding: 4px; }
 table { border-collapse: collapse; width: 100%; font-size: .88rem; }
-th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: none; }
 th { color: var(--muted); font-weight: 600; font-size: .78rem; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.wide { white-space: normal; min-width: 14em; }
+/* Phone: each table row becomes a small block (title, then labelled values) instead of a sideways scroll. */
+@media (max-width: 600px) {
+  .tablewrap { overflow: visible; padding: 0 var(--pad); }
+  table, tbody { display: block; }
+  thead { display: none; }
+  tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  tbody tr:last-child { border-bottom: none; }
+  td, td.num { display: block; border: none; padding: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; min-width: 0; }
+  td::before { content: attr(data-label); display: block; font-size: .72rem; color: var(--muted); font-weight: 400; }
+  td:first-child { grid-column: 1 / -1; font-size: 1rem; font-weight: 600; }
+  td:first-child::before { display: none; }
+  td.wide { grid-column: 1 / -1; }
+  td.empty { display: none; }
+  table.kv tr { grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; }
+  table.kv td:first-child { grid-column: auto; font-weight: 400; }
+  table.kv td::before { display: none; }
+}
 
 #toast {
-  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 20; max-width: calc(100% - 24px);
-  background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; box-shadow: 0 4px 18px rgba(0,0,0,.2);
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 60px); transform: translateX(-50%); z-index: 20;
+  width: max-content; max-width: calc(100% - 28px);
+  background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,.2);
   opacity: 0; pointer-events: none; transition: opacity .2s;
 }
 #toast.show { opacity: 1; pointer-events: auto; }
 #toast.err { background: var(--bad); color: #fff; }
+@media (prefers-color-scheme: dark) { #toast.err { color: #1d0b09; } }
+@media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+
 /* Settings */
-.set-group { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 14px; }
-.set-group h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0; padding: 10px 14px 0; }
-.set-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; min-height: 52px; }
+.set-group { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 16px; }
+.set-group h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0; padding: 14px var(--pad) 2px; }
+.set-row { display: flex; align-items: center; gap: 8px 14px; padding: 12px var(--pad); min-height: 56px; color: inherit; }
+a.set-row:hover { text-decoration: none; }
 .set-row + .set-row { border-top: 1px solid var(--line); }
 .set-row .lbl { flex: 1; min-width: 0; }
-.set-row .lbl small { display: block; color: var(--muted); font-size: .8rem; }
-.set-row select, .set-row input[type=number] { max-width: 50%; }
+.set-row .lbl small { display: block; color: var(--muted); font-size: .82rem; margin-top: 2px; }
+.set-row select { max-width: 55%; }
 .set-row input[type=number] { width: 5.5em; }
-.set-row input[type=checkbox] { width: 22px; height: 22px; flex: none; }
-.feed-item { border-top: 1px solid var(--line); padding: 10px 0; }
-.feed-item:first-child { border-top: none; }
-.kb { display: inline-block; min-width: 1.4em; padding: 0 .3em; border: 1px solid currentColor; border-radius: 4px; font-size: .75em; text-align: center; opacity: .65; }
-.warn-note { color: var(--warn); font-size: .85rem; margin-top: 2px; }
+.set-row input[type=checkbox] { width: 26px; height: 26px; flex: none; margin: 0; }
+.set-row .unit { display: flex; align-items: center; gap: 8px; }
+.set-row .chev { color: var(--muted); font-size: 1.3rem; }
+/* Rows with a long hint: control goes under the text instead of squeezing it. */
+.set-row.stack { flex-wrap: wrap; }
+.set-row.stack .lbl { flex: 1 1 100%; }
+.set-row.stack select { max-width: none; width: 100%; }
+@media (min-width: 640px) { .set-row.stack { flex-wrap: nowrap; } .set-row.stack .lbl { flex: 1; } .set-row.stack select { width: auto; max-width: 50%; } }
+
+/* Teacher feedback */
+.feed-item { border-top: 1px solid var(--line); padding: 14px 0; }
+.feed-item:first-child { border-top: none; padding-top: 0; }
+.feed-item:last-child { padding-bottom: 0; }
+.feed-item .face { font-size: 1.05rem; margin: 4px 0 2px; overflow-wrap: anywhere; }
+.feed-item .face:has(ruby) { line-height: 1.8; }
+.feed-item .teacher { margin-top: 8px; }
+.kb { display: inline-block; min-width: 1.4em; padding: 0 .3em; border: 1px solid currentColor; border-radius: 4px; font-size: .75em; text-align: center; opacity: .75; }
 </style>
 </head>
 <body>
@@ -411,14 +503,14 @@ function topInfo() {
   const c = R.counts || {};
   const bar = h("div", { class: "rv-bar" },
     h("span", null, `${c.due_review_cards ?? 0} due · ${c.new_cards_available ?? 0} new`),
-    R.pending ? h("a", { href: "#/feedback", title: "Answers waiting for your teacher" }, `${R.pending} to grade`) : null,
+    R.pending ? h("a", { class: "hit", href: "#/feedback", title: "Answers waiting for your teacher" }, `${R.pending} to grade`) : null,
     R.done ? h("span", null, `${R.done} done`) : null,
     R.practice ? h("span", { class: "badge" }, R.record ? "practice · saved" : "practice · not saved") : null,
     h("a", { class: "deckname", href: "#/settings", title: "Change deck and review settings" }, curDeck() || "All decks"));
   const banner = R.unseen
     ? h("a", { class: "banner", href: "#/feedback" }, `💬 ${R.unseen} new note${R.unseen === 1 ? "" : "s"} from your teacher`)
     : null;
-  return [banner, bar];
+  return banner ? [banner, bar] : [bar];
 }
 
 function drawReview() {
@@ -440,8 +532,8 @@ function drawReview() {
   const meta = h("div", { class: "rv-meta" },
     h("span", null, askLabel(p.ask.map((a) => a.face))),
     item.is_new ? h("span", { class: "badge" }, "new") : null,
-    h("span", { style: "margin-left:auto" }, curDeck() ? "" : item.deck || ""),
-    hasRuby(item) ? h("button", { type: "button", class: "furi-toggle" + (R.furiAll ? " on" : ""), "aria-pressed": R.furiAll ? "true" : "false",
+    h("span", { class: "push" }, curDeck() ? "" : item.deck || ""),
+    hasRuby(item) ? h("button", { type: "button", class: "furi-toggle hit" + (R.furiAll ? " on" : ""), "aria-pressed": R.furiAll ? "true" : "false",
       title: "Show all readings on this card", onclick: () => { R.furiAll = !R.furiAll; drawReview(); } }, "ふりがな") : null);
   const card = h("div", { class: "panel" }, meta,
     h("div", { class: "prompt " + size, lang: langFor(p.show, plain(shown)) }, rich(item, p.show, shown, R.furiAll)),
@@ -468,9 +560,9 @@ function askForm(p) {
     const kb = h("span", { class: "kb", title: ja ? "Japanese keyboard (romaji is accepted too)" : "English keyboard" }, ja ? "あ" : "A");
     return h("div", { class: "field" }, h("label", { for: id }, FACE_LABEL[a.face] || a.face, " ", kb), inp);
   });
-  return h("div", null, inputs, h("div", { class: "actions" },
+  return h("div", null, inputs, h("div", { class: "actions ask-actions" },
     h("button", { class: "primary", id: "check", onclick: doCheck }, "Check"),
-    h("button", { onclick: doFlip }, "Show answer")));
+    h("button", { class: "flip", onclick: doFlip }, "Show answer")));
 }
 
 /** Free answers (basic notes: sentences, "Say in Japanese") can't be judged by exact match. */
@@ -530,8 +622,10 @@ function resultView(item, p) {
     const others = model ? expected.filter((x) => x !== plain(item.faces[a.face]) && !/^[ぁ-ゖー\s、。！？]+$/.test(x)) : [];
     return h("div", { class: "result " + cls },
       h("div", { class: "head" }, h("span", { class: "mark" }, mark),
-        h("span", { class: "muted small" }, FACE_LABEL[a.face] || a.face, r?.close && !r?.correct ? " · almost" : ""),
-        R.results ? h("span", { class: "yours", lang: ans ? langFor(a.face, ans) : null }, ans || "(blank)") : null),
+        h("span", { class: "muted small" }, FACE_LABEL[a.face] || a.face, r?.close && !r?.correct ? " · almost" : "")),
+      // A correct answer identical to the single expected one isn't repeated.
+      R.results && !(r?.correct && expected.length === 1 && expected[0] === ans) ? h("div", { class: "yours" + (ans ? "" : " blank"), lang: ans ? langFor(a.face, ans) : null },
+        h("span", { class: "lead", lang: "en" }, "you"), ans || "(blank)") : null,
       h("div", { class: "expected", lang }, model || expected.join(" · ")),
       others.length ? h("div", { class: "also", lang }, "also: " + others.join(" · ")) : null,
       r?.warning ? h("div", { class: "warn-note" }, "⚠ " + r.warning) : null,
@@ -541,25 +635,26 @@ function resultView(item, p) {
   const aa = item.after_answer || {};
   const fb = (aa.feedback || []).filter((f) => p.ask.some((a) => a.direction === f.direction));
   return h("div", null, rows,
-    h("div", { class: "actions", style: "margin-top:10px" },
-      h("button", { class: "primary", id: "next", disabled: !ready || R.busy, onclick: doNext }, "Next ⏎")),
     aa.trap ? h("div", { class: "trap", lang: isJaText(aa.trap) ? "ja" : null }, "⚠ ", rich(item, "trap", aa.trap, R.furiAll)) : null,
     fb.map((f) => h("div", { class: "teacher" }, h("div", { class: "who" }, "Teacher, last time" + (f.answer ? ` (you: ${f.answer})` : "")),
       h("div", { class: "pre", lang: isJaText(f.feedback) ? "ja" : null }, f.feedback))),
-    fullNote(item));
+    fullNote(item, p),
+    h("div", { class: "nextbar" },
+      h("button", { class: "primary", id: "next", disabled: !ready || R.busy, onclick: doNext }, "Next", h("span", { class: "key-hint" }, " ⏎"))));
 }
 
-function fullNote(item) {
+/** The rest of the note: faces not already on screen (prompt and asked faces are), notes, example. */
+function fullNote(item, p) {
   const f = item.faces || {};
-  const keys = item.type === "basic" ? ["front", "back"] : ["kanji", "kana", "meaning"];
+  const onScreen = new Set([p.show, ...p.ask.map((a) => a.face)]);
+  const keys = (item.type === "basic" ? ["front", "back"] : ["kanji", "kana", "meaning"]).filter((k) => !onScreen.has(k));
   const dl = h("dl", null, keys.filter((k) => f[k]).map((k) =>
     [h("dt", null, k), h("dd", { lang: langFor(k, plain(f[k])), class: "pre" }, rich(item, k, f[k], R.furiAll))]));
   const aa = item.after_answer || {};
   if (item.notes) dl.append(h("dt", null, "notes"), h("dd", { class: "pre" }, rich(item, "notes", item.notes, R.furiAll)));
   if (aa.example) dl.append(h("dt", null, "example"), h("dd", { class: "pre", lang: "ja" }, rich(item, "example", aa.example, R.furiAll)));
-  return h("div", { class: "fullnote" }, dl,
-    h("div", { class: "small", style: "margin-top:6px;text-align:right" },
-      h("a", { href: "#/cards/" + encodeURIComponent(item.note_id) }, "Edit note")));
+  return [dl.children.length ? h("div", { class: "fullnote" }, dl) : null,
+    h("div", { class: "editlink" }, h("a", { class: "hit", href: "#/cards/" + encodeURIComponent(item.note_id) }, "Edit note"))];
 }
 
 async function doNext() {
@@ -610,7 +705,7 @@ async function viewSettings(tok) {
   let server = null;
   try { server = await api("/api/settings"); } catch {}
   if (tok !== seq) return;
-  const row = (label, hint, control) => h("label", { class: "set-row" }, h("span", { class: "lbl" }, label, hint ? h("small", null, hint) : null), control);
+  const row = (label, hint, control, stack) => h("label", { class: "set-row" + (stack ? " stack" : "") }, h("span", { class: "lbl" }, label, hint ? h("small", null, hint) : null), control);
   const group = (title, ...rows) => h("section", { class: "set-group" }, h("h3", null, title), rows);
   const reload = () => { R.loaded = false; R.seen.clear(); };
 
@@ -639,16 +734,16 @@ async function viewSettings(tok) {
   main.replaceChildren(
     group("Review",
       row("Deck", null, deckSel),
-      row("Questions", "How many answers one card asks for. “One keyboard at a time” never mixes Japanese and English.", modeSel)),
+      row("Questions", "How many answers one card asks for. “One keyboard at a time” never mixes Japanese and English.", modeSel, true)),
     group("Practice",
       row("Practice ahead", "Also show cards that aren't due yet", practiceBox),
       row("Save practice ratings", "Off: answers are checked but your schedule is untouched", recordBox)),
     group("Furigana",
       row("Hide a reading after", "Days of reliable reading (kanji → kana card) before its furigana is hidden. Shared with your teacher.",
-        h("span", { style: "display:flex;align-items:center;gap:6px" }, days, "days"))),
+        h("span", { class: "unit" }, days, "days"), true)),
     group("Teacher",
       h("a", { class: "set-row", href: "#/feedback" }, h("span", { class: "lbl" }, "Feedback & answers to grade",
-        h("small", null, "Notes from your teacher, and answers you sent with “Grade later”")), "›")),
+        h("small", null, "Notes from your teacher, and answers you sent with “Grade later”")), h("span", { class: "chev", "aria-hidden": "true" }, "›"))),
     group("Account",
       h("div", { class: "set-row" }, h("span", { class: "lbl" }, "Signed in", h("small", null, me?.email || "")),
         h("button", { type: "button", onclick: logout }, "Log out"))));
@@ -662,22 +757,22 @@ async function viewFeedback(tok) {
   catch { if (tok === seq) main.replaceChildren(h("p", { class: "muted" }, "Could not load feedback.")); return; }
   if (tok !== seq) return;
   const faceLine = (f, item) => f.type === "basic" || f.front != null
-    ? h("div", { lang: langFor("front", plain(f.front)) }, item ? rich(item, "front", f.front) : plain(f.front))
-    : h("div", { lang: "ja" }, f.kanji ? `${f.kanji} ` : "", f.kana || "", h("span", { class: "muted" }, " · " + (f.meaning || "")));
+    ? h("div", { class: "face", lang: langFor("front", plain(f.front)) }, item ? rich(item, "front", f.front) : plain(f.front))
+    : h("div", { class: "face", lang: "ja" }, f.kanji ? `${f.kanji} ` : "", f.kana || "", h("span", { class: "muted" }, " · " + (f.meaning || "")));
   const fbItems = (fb.items || []).map((x) => h("div", { class: "feed-item" },
     h("div", { class: "rv-meta" }, h("span", null, relTime(x.reviewed_at)), h("span", { class: "badge" }, x.rating),
       !x.seen ? h("span", { class: "badge" }, "new") : null,
-      h("a", { style: "margin-left:auto", href: "#/cards/" + encodeURIComponent(x.note_id) }, "card")),
+      h("a", { class: "push hit", href: "#/cards/" + encodeURIComponent(x.note_id) }, "card")),
     faceLine(x.faces),
     x.answer ? h("div", { class: "small muted" }, "You: ", h("span", { lang: isJaText(x.answer) ? "ja" : null }, x.answer)) : null,
     h("div", { class: "teacher" }, h("div", { class: "pre", lang: isJaText(x.feedback) ? "ja" : null }, x.feedback))));
   const pendItems = (pend.items || []).map((x) => h("div", { class: "feed-item" },
     h("div", { class: "rv-meta" }, h("span", null, relTime(x.answered_at)), h("span", null, x.deck),
-      h("a", { style: "margin-left:auto", href: "#/cards/" + encodeURIComponent(x.note_id) }, "card")),
+      h("a", { class: "push hit", href: "#/cards/" + encodeURIComponent(x.note_id) }, "card")),
     faceLine({ ...x.faces, type: x.type }, x),
     h("div", { class: "small" }, "You: ", h("span", { lang: isJaText(x.answer) ? "ja" : null }, x.answer || "(blank)"))));
   main.replaceChildren(
-    h("h2", { style: "margin-top:4px" }, "From your teacher"),
+    h("h2", null, "From your teacher"),
     fbItems.length ? h("div", { class: "panel" }, fbItems) : h("p", { class: "muted small" }, "No feedback yet."),
     h("h2", null, `Waiting for grading (${pend.pending ?? 0})`),
     pendItems.length ? h("div", { class: "panel" }, pendItems)
@@ -800,8 +895,8 @@ function drawDetail(note) {
         drawDetail({ ...note, ...upd, history: note.history });
       } catch { e.target.checked = !e.target.checked; e.target.disabled = false; }
     } });
-    return h("label", { title: DIR_NAME[d] }, cb, h("span", { lang: "ja" }, DIR_SHORT[d]), h("span", { class: "small" }, DIR_NAME[d]),
-      missing.length ? h("span", { class: "muted small" }, `(needs ${missing.join(", ")})`) : null);
+    return h("label", { title: DIR_NAME[d] }, cb, h("span", { lang: "ja" }, DIR_SHORT[d]), h("span", { class: "small" }, DIR_NAME[d],
+      missing.length ? h("span", { class: "muted needs" }, `needs ${missing.join(", ")}`) : null));
   }));
 
   const sched = table(["Direction", "State", "Due", "Reps", "Lapses", "Stability", "Recall"],
@@ -812,13 +907,13 @@ function drawDetail(note) {
   const histT = hist.length
     ? table(["When", "Direction", "Rating", "Source", "Answer", "Teacher"], hist.map((r) => [h("span", { title: fmtDate(r.reviewed_at) }, relTime(r.reviewed_at)),
         dirShort(r.direction), typeof r.rating === "number" ? RATINGS[r.rating - 1] || r.rating : r.rating, r.source || "", h("span", { lang: isJaText(r.answer) ? "ja" : null }, r.answer || ""),
-        h("span", { lang: isJaText(r.feedback) ? "ja" : null }, r.feedback || "")]))
+        h("span", { lang: isJaText(r.feedback) ? "ja" : null }, r.feedback || "")]), [], [4, 5])
     : h("p", { class: "muted small" }, "No reviews yet.");
 
   const waiting = (note.waiting_for_grading || []).length
     ? h("p", { class: "banner" }, `${note.waiting_for_grading.length} answer(s) waiting for your teacher`) : null;
-  main.replaceChildren(
-    h("div", { class: "actions", style: "justify-content:space-between;align-items:center" },
+  main.replaceChildren(...[
+    h("div", { class: "detail-top" },
       h("a", { href: "#/cards" }, "← Cards"),
       h("button", { class: "danger", onclick: async () => {
         if (!confirm("Delete this note and all its cards and history?")) return;
@@ -828,13 +923,19 @@ function drawDetail(note) {
     h("h2", null, isWord ? "Word" : "Basic note"), form,
     h("h2", null, "Directions"), dirs,
     h("h2", null, "Schedule"), sched,
-    h("h2", null, "History"), histT);
+    h("h2", null, "History"), histT].filter(Boolean));
 }
 
-function table(headers, rows, numCols = []) {
-  return h("div", { class: "tablewrap panel", style: "padding:4px" }, h("table", null,
+/** wideCols: free-text columns (wrap, full width on a phone). data-label feeds the phone layout, where the header row is hidden. */
+function table(headers, rows, numCols = [], wideCols = []) {
+  const cell = (c, i) => {
+    const td = h("td", { "data-label": headers[i] }, c);
+    td.className = [numCols.includes(i) ? "num" : "", wideCols.includes(i) ? "wide" : "", td.textContent.trim() === "" ? "empty" : ""].filter(Boolean).join(" ");
+    return td;
+  };
+  return h("div", { class: "tablewrap panel" }, h("table", { class: headers.length === 2 ? "kv" : null },
     h("thead", null, h("tr", null, headers.map((t, i) => h("th", { class: numCols.includes(i) ? "num" : null }, t)))),
-    h("tbody", null, rows.map((r) => h("tr", null, r.map((c, i) => h("td", { class: numCols.includes(i) ? "num" : null }, c)))))));
+    h("tbody", null, rows.map((r) => h("tr", null, r.map(cell))))));
 }
 
 // ---------- Stats ----------
@@ -865,19 +966,19 @@ async function viewStats(tok) {
       : Array.isArray(per)
       ? per.map((x) => [x.direction, x.lapses])
       : per && typeof per === "object" ? Object.entries(per).map(([d, v]) => [d, typeof v === "object" && v ? v.lapses : v]) : [];
-    return [h("a", { href: "#/cards/" + encodeURIComponent(n.note_id), lang: langFor("kanji", label) }, label),
+    return [h("a", { class: "hit", href: "#/cards/" + encodeURIComponent(n.note_id), lang: langFor("kanji", label) }, label),
       h("span", { lang: "ja" }, n.kanji ? n.kana || "" : ""), h("span", { class: "muted" }, n.meaning || ""),
       n.lapses ?? 0, h("span", { class: "chips", style: "margin:0" }, perList.filter(([, v]) => v).map(([d, v]) =>
         h("span", { class: "tag", title: DIR_NAME[d] || d }, h("span", { lang: "ja" }, DIR_SHORT[d] || d), " " + v)))];
   });
 
   main.replaceChildren(
-    h("h2", { style: "margin-top:4px" }, "By direction", curDeck() ? h("span", { class: "muted small" }, " · " + curDeck()) : null),
+    h("h2", null, "By direction", curDeck() ? h("span", { class: "muted small" }, " · " + curDeck()) : null),
     by.length ? dirT : h("p", { class: "muted" }, "No cards yet."),
     h("h2", null, "Reviews by source"),
     srcRows.length ? table(["Source", "Reviews"], srcRows, [1]) : h("p", { class: "muted small" }, "No reviews yet."),
     h("h2", null, "Hardest notes"),
-    hard.length ? table(["Note", "Reading", "Meaning", "Lapses", "By direction"], hard, [3]) : h("p", { class: "muted small" }, "Nothing hard yet."));
+    hard.length ? table(["Note", "Reading", "Meaning", "Lapses", "By direction"], hard, [3], [4]) : h("p", { class: "muted small" }, "Nothing hard yet."));
 }
 
 // ---------- boot ----------
